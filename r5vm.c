@@ -3,10 +3,11 @@
 #include <string.h>
 #include <assert.h>
 
-// ---- Defines ---------------------------------------------------------------
+#include <stdio.h>
+
+// ---- Macros ---------------------------------------------------------------
 
 #define IS_POWER_OF_TWO(n)  ((n) != 0 && ((n) & ((n) - 1)) == 0)
-
 #define SIGN_EXT(x,bits)    ((int32_t)((x) << (32 - (bits))) >> (32 - (bits)))
 
 #define OPCODE(inst)        ((inst) & 0x7F)
@@ -17,57 +18,62 @@
 #define FUNCT7(inst)        (((inst) >> 25) & 0x7F)
 #define IMM_I(inst)         SIGN_EXT(((inst) >> 20) & 0xFFF, 12)
 #define IMM_S(inst)         SIGN_EXT(((((inst) >> 25) << 5) | \
-                                      ((inst >> 7) & 0x1F)), 12)
+                                      (((inst) >> 7) & 0x1F)), 12)
 #define IMM_U(inst)         ((uint32_t)(inst) & 0xFFFFF000)
-#define IMM_B(inst)         SIGN_EXT(((((inst) >> 31) & 0x1) << 12) | ((((inst) >> 7) & 0x1) << 11) | ((((inst) >> 25) & 0x3F) << 5) | ((((inst) >> 8) & 0xF) << 1), 13)
-#define IMM_J(inst) \
-    SIGN_EXT( \
-        (((inst >> 31) & 0x1) << 20) | \
-        (((inst >> 12) & 0xFF) << 12) | \
-        (((inst >> 20) & 0x1) << 11) | \
-        (((inst >> 21) & 0x3FF) << 1), \
-        21)
+#define IMM_B(inst)         SIGN_EXT( \
+                                ((((inst) >> 31) & 0x1) << 12) | \
+                                ((((inst) >> 7)  & 0x1) << 11) | \
+                                ((((inst) >> 25) & 0x3F) << 5) | \
+                                ((((inst) >> 8)  & 0xF) << 1), \
+                                13)
+#define IMM_J(inst)         SIGN_EXT( \
+                                (((inst >> 31) & 0x1) << 20) | \
+                                (((inst >> 12) & 0xFF) << 12) | \
+                                (((inst >> 20) & 0x1) << 11) | \
+                                (((inst >> 21) & 0x3FF) << 1), \
+                                21)
 
-#define R5VM_OPCODE_R_TYPE  0x33
-#define R5VM_OPCODE_I_TYPE  0x13
-#define R5VM_OPCODE_LW      0x03
-#define R5VM_OPCODE_SW      0x23
-#define R5VM_OPCODE_SYSTEM  0x73
-#define R5VM_OPCODE_AUIPC   0x17
-#define R5VM_OPCODE_BRANCH  0x63
-#define R5VM_OPCODE_LUI     0x37
-#define R5VM_OPCODE_JAL     0x6F
-#define R5VM_OPCODE_JALR    0x67
-#define R5VM_OPCODE_FENCE   0x0F
+// ---- Defines ---------------------------------------------------------------
+
+#define R5VM_OPCODE_R_TYPE  0x33 // Register-Register operations
+#define R5VM_OPCODE_I_TYPE  0x13 // Register-Immediate operations
+#define R5VM_OPCODE_LW      0x03 // Load Instructions
+#define R5VM_OPCODE_SW      0x23 // Store Instructions
+#define R5VM_OPCODE_SYSTEM  0x73 // System Call Instructions
+#define R5VM_OPCODE_AUIPC   0x17 // Add Upper Immediate to PC
+#define R5VM_OPCODE_BRANCH  0x63 // Branch Instructions
+#define R5VM_OPCODE_LUI     0x37 // Load Upper Immediate
+#define R5VM_OPCODE_JAL     0x6F // Jump and Link
+#define R5VM_OPCODE_JALR    0x67 // Jump and Link Register
+#define R5VM_OPCODE_FENCE   0x0F // Fence Instructions (Noop for R5VM)
 
 /* Function 3 (F3) */
-#define R5VM_R_F3_ADD_SUB   0x00
-#define R5VM_R_F3_XOR       0x04
-#define R5VM_R_F3_OR        0x06
-#define R5VM_R_F3_AND       0x07
-#define R5VM_R_F3_SLL       0x01
-#define R5VM_R_F3_SRL       0x05
-#define R5VM_R_F3_SRA       0x05
-#define R5VM_R_F3_SLT       0x02
-#define R5VM_R_F3_SLTU      0x03
+#define R5VM_R_F3_ADD_SUB   0x00 // Add / Subtract
+#define R5VM_R_F3_XOR       0x04 // Xor
+#define R5VM_R_F3_OR        0x06 // Or
+#define R5VM_R_F3_AND       0x07 // And
+#define R5VM_R_F3_SLL       0x01 // Shift Left Logical
+#define R5VM_R_F3_SRL_SRA   0x05 // Shift Right Logical/Arithmetic
+#define R5VM_R_F3_SLT       0x02 // Set Less Than
+#define R5VM_R_F3_SLTU      0x03 // Set Less Than Unsigned
 
-#define R5VM_I_F3_ADDI      0x00
-#define R5VM_I_F3_XORI      0x04
-#define R5VM_I_F3_ORI       0x06
-#define R5VM_I_F3_ANDI      0x07
-#define R5VM_I_F3_SLLI      0x01
-#define R5VM_I_F3_SRLI_SRAI 0x05
-#define R5VM_I_F3_SLTI      0x02
-#define R5VM_I_F3_SLTIU     0x03
+#define R5VM_I_F3_ADDI      0x00 // Add Immediate
+#define R5VM_I_F3_XORI      0x04 // Xor Immediate
+#define R5VM_I_F3_ORI       0x06 // Or Immediate
+#define R5VM_I_F3_ANDI      0x07 // And Immediate
+#define R5VM_I_F3_SLLI      0x01 // Shift Left Logical Immediate
+#define R5VM_I_F3_SRLI_SRAI 0x05 // Shift Right Logical/Arithmetic Immediate
+#define R5VM_I_F3_SLTI      0x02 // Set Less Than Immediate
+#define R5VM_I_F3_SLTIU     0x03 // Set Less Than Immediate Unsigned
 
-#define R5VM_I_F3_LB        0x00
-#define R5VM_I_F3_LH        0x01
+#define R5VM_I_F3_LB        0x00 // Load Byte
+#define R5VM_I_F3_LH        0x01 // Load Halfword
 #define R5VM_I_F3_LW        0x02 // Load Word: R[rd] = M[R[rs1]+SE(imm)]
-#define R5VM_I_F3_LBU       0x04
-#define R5VM_I_F3_LHU       0x05
+#define R5VM_I_F3_LBU       0x04 // Load Byte Unsigned
+#define R5VM_I_F3_LHU       0x05 // Load Halfword Unsigned
 
-#define R5VM_S_F3_SB        0x00
-#define R5VM_S_F3_SH        0x01
+#define R5VM_S_F3_SB        0x00 // Store Byte
+#define R5VM_S_F3_SH        0x01 // Store Halfword
 #define R5VM_S_F3_SW        0x02 // Store Word: M[R[rs1]+SE(imm)] = R[rs2]
 
 #define R5VM_B_F3_BEQ       0x00 // Branch if Equal
@@ -78,13 +84,13 @@
 #define R5VM_B_F3_BGEU      0x07 // Branch if Unsigned Greater or Equal
 
 /* Function 7 */
-#define R5VM_R_F7_ADD       0x00
-#define R5VM_R_F7_SUB       0x20
-#define R5VM_R_F7_SRL       0x00
-#define R5VM_R_F7_SRA       0x20
-#define R5VM_I_F7_SRLI      0x00
-#define R5VM_I_F7_SRAI      0x20
-#define R5VM_I_F7_SLLI      0x00
+#define R5VM_R_F7_ADD       0x00 // Add for R-type F3=Add/Sub
+#define R5VM_R_F7_SUB       0x20 // Subtract for R-type F3=Add/Sub
+#define R5VM_R_F7_SRL       0x00 // Shift Right Logical for R-type F3=SRL/SRA
+#define R5VM_R_F7_SRA       0x20 // Shift Right Arith. for R-type F3=SRL/SRA
+#define R5VM_I_F7_SRLI      0x00 // Shift Right Logic. Imm. I-type F3=SRLI/SRAI
+#define R5VM_I_F7_SRAI      0x20 // Shift R. Arith. Imm. I-type F3=SRLI/SRAI
+#define R5VM_I_F7_SLLI      0x00 // Shift Left Logic. Imm. for I-type F3=SLLI
 
 // ---- Functions -------------------------------------------------------------
 
@@ -165,125 +171,64 @@ bool r5vm_step(r5vm_t* vm)
     {
     /* _--------------------- R-Type instuctions ---------------------_ */
     case (R5VM_OPCODE_R_TYPE):
-        if ((FUNCT3(inst) == R5VM_R_F3_ADD_SUB) &&
-            (FUNCT7(inst) == R5VM_R_F7_ADD))
-        {
-            R[RD(inst)] = R[rs1] + R[rs2];
-        }
-        else if ((FUNCT3(inst) == R5VM_R_F3_ADD_SUB) &&
-                 (FUNCT7(inst) == R5VM_R_F7_SUB))
-        {
-            R[RD(inst)] = R[rs1] - R[rs2];
-        }
-        else if ((FUNCT3(inst) == R5VM_R_F3_XOR))
-        {
-            R[RD(inst)] = R[rs1] ^ R[rs2];
-        }
-        else if ((FUNCT3(inst) == R5VM_R_F3_OR))
-        {
-            R[RD(inst)] = R[rs1] | R[rs2];
-        }
-        else if ((FUNCT3(inst) == R5VM_R_F3_AND))
-        {
-            R[RD(inst)] = R[rs1] & R[rs2];
-        }
-        else if ((FUNCT3(inst) == R5VM_R_F3_SLL))
-        {
-            R[RD(inst)] = R[rs1] << (R[rs2] & 0x1F);
-        }
-        else if ((FUNCT3(inst) == R5VM_R_F3_SRL) && (FUNCT7(inst) == R5VM_R_F7_SRL))
-        {
-            R[RD(inst)] = R[rs1] >> (R[rs2] & 0x1F);
-        }
-        else if ((FUNCT3(inst) == R5VM_R_F3_SRA) && (FUNCT7(inst) == R5VM_R_F7_SRA))
-        {
-            R[RD(inst)] = ((int32_t)R[rs1]) >> (R[rs2] & 0x1F);
-        }
-        else if ((FUNCT3(inst) == R5VM_R_F3_SLT))
-        {
-            R[RD(inst)] = ((int32_t)R[rs1] < (int32_t)R[rs2]) ? 1 : 0;
-        }
-        else if ((FUNCT3(inst) == R5VM_R_F3_SLTU))
-        {
-            R[RD(inst)] = (R[rs1] < R[rs2]) ? 1 : 0;
-        }
+        switch (FUNCT3(inst)) {
+        case R5VM_R_F3_ADD_SUB:
+            R[rd] = (FUNCT7(inst) == R5VM_R_F7_SUB)
+                        ? R[rs1] - R[rs2]
+                        : R[rs1] + R[rs2];
+            break;
+        case R5VM_R_F3_XOR:  R[rd] = R[rs1] ^ R[rs2]; break;
+        case R5VM_R_F3_OR:   R[rd] = R[rs1] | R[rs2]; break;
+        case R5VM_R_F3_AND:  R[rd] = R[rs1] & R[rs2]; break;
+        case R5VM_R_F3_SLL:  R[rd] = R[rs1] << (R[rs2] & 0x1F); break;
+        case R5VM_R_F3_SRL_SRA:
+                             if (FUNCT7(inst) == R5VM_R_F7_SRA)
+                                 R[rd] = ((int32_t)R[rs1]) >> (R[rs2] & 0x1F);
+                             else
+                                 R[rd] = R[rs1] >> (R[rs2] & 0x1F);
+                             break;
+        case R5VM_R_F3_SLT:  R[rd] = ((int32_t)R[rs1] < (int32_t)R[rs2]); break;
+        case R5VM_R_F3_SLTU: R[rd] = (R[rs1] < R[rs2]); break;
 #ifdef R5VM_DEBUG
-        else
-        {
-            r5vm_error(vm, "Unknown R-type funct3", vm->pc-4, inst);
-        }
+        default:
+            r5vm_error(vm, "Unknown R-type funct3", vm->pc - 4, inst);
+            retcode = false;
 #endif
+        }
         break;
     /* _--------------------- I-Type instuctions ---------------------_ */
     case (R5VM_OPCODE_I_TYPE):
-        if (FUNCT3(inst) == R5VM_I_F3_ADDI)
-        {
-            R[RD(inst)] = R[rs1] + IMM_I(inst);
-        }
-        else if (FUNCT3(inst) == R5VM_I_F3_XORI)
-        {
-            R[RD(inst)] = R[rs1] ^ IMM_I(inst);
-        }
-        else if (FUNCT3(inst) == R5VM_I_F3_ORI)
-        {
-            R[RD(inst)] = R[rs1] | IMM_I(inst);
-        }
-        else if (FUNCT3(inst) == R5VM_I_F3_ANDI)
-        {
-            R[RD(inst)] = R[rs1] & IMM_I(inst);
-        }
-        else if ((FUNCT3(inst) == R5VM_I_F3_SLLI))
-        {
+        switch (FUNCT3(inst)) {
+        case R5VM_I_F3_ADDI:  R[rd] = R[rs1] + IMM_I(inst); break;
+        case R5VM_I_F3_XORI:  R[rd] = R[rs1] ^ IMM_I(inst); break;
+        case R5VM_I_F3_ORI:   R[rd] = R[rs1] | IMM_I(inst); break;
+        case R5VM_I_F3_ANDI:  R[rd] = R[rs1] & IMM_I(inst); break;
+        case R5VM_I_F3_SLTI:  R[rd] = ((int32_t)R[rs1] < IMM_I(inst)); break;
+        case R5VM_I_F3_SLTIU: R[rd] = (R[rs1] < (uint32_t)IMM_I(inst)); break;
+        case R5VM_I_F3_SLLI:
             if (FUNCT7(inst) == R5VM_I_F7_SLLI)
-            {
-                R[RD(inst)] = R[rs1] << (IMM_I(inst) & 0x1F);
-            }
-#ifdef R5VM_DEBUG
-            else
-            {
-                r5vm_error(vm, "Unknown I-type SLLI funct7", vm->pc-4, inst);
-                retcode = false;
-                break;
-            }
-#endif
-        }
-        else if ((FUNCT3(inst) == R5VM_I_F3_SRLI_SRAI))
-        {
+                R[rd] = R[rs1] << (IMM_I(inst) & 0x1F);
+            break;
+        case R5VM_I_F3_SRLI_SRAI:
             if (FUNCT7(inst) == R5VM_I_F7_SRLI)
-                R[RD(inst)] = R[rs1] >> (IMM_I(inst) & 0x1F);
+                R[rd] = R[rs1] >> (IMM_I(inst) & 0x1F);
             else if (FUNCT7(inst) == R5VM_I_F7_SRAI)
-                R[RD(inst)] = ((int32_t)R[rs1]) >> (IMM_I(inst) & 0x1F);
+                R[rd] = ((int32_t)R[rs1]) >> (IMM_I(inst) & 0x1F);
+            break;
 #ifdef R5VM_DEBUG
-            else
-            {
-                r5vm_error(vm, "Unknown I-type SRLI/SRAI funct7", vm->pc-4, inst);
-                retcode = false;
-            }
-#endif
-        }
-        else if (FUNCT3(inst) == R5VM_I_F3_SLTI)
-        {
-            R[RD(inst)] = ((int32_t)R[rs1] < IMM_I(inst)) ? 1 : 0;
-        }
-        else if (FUNCT3(inst) == R5VM_I_F3_SLTIU)
-        {
-            R[RD(inst)] = (R[rs1] < (uint32_t)IMM_I(inst)) ? 1 : 0;
-        }
-#ifdef R5VM_DEBUG
-        else
-        {
-            r5vm_error(vm, "Unknown I-type funct3", vm->pc-4, inst);
+        default:
+            r5vm_error(vm, "Unknown I-type funct3", vm->pc - 4, inst);
             retcode = false;
-        }
 #endif
+        }
         break;
     /* _--------------------- AUIPC -----------------------------------_ */
     case (R5VM_OPCODE_AUIPC):
-        R[RD(inst)] = vm->pc - 4 + IMM_U(inst);
+        R[rd] = vm->pc - 4 + IMM_U(inst);
         break;
     /* _--------------------- LUI -------------------------------------_ */
     case (R5VM_OPCODE_LUI):
-        R[RD(inst)] = IMM_U(inst);
+        R[rd] = IMM_U(inst);
         break;
     /* _--------------------- Load -----------------------------------_ */
     case (R5VM_OPCODE_LW):
@@ -302,33 +247,18 @@ bool r5vm_step(r5vm_t* vm)
         const uint8_t b2 = vm->mem[(addr + 2) & vm->mem_mask];
         const uint8_t b3 = vm->mem[(addr + 3) & vm->mem_mask];
 
-        if (FUNCT3(inst) == R5VM_I_F3_LW)
-        {
-            R[RD(inst)] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
-        }
-        else if (FUNCT3(inst) == R5VM_I_F3_LB)
-        {
-            R[RD(inst)] = (int8_t)b0;
-        }
-        else if (FUNCT3(inst) == R5VM_I_F3_LH)
-        {
-            R[RD(inst)] = (int16_t)(b0 | (b1 << 8));
-        }
-        else if (FUNCT3(inst) == R5VM_I_F3_LBU)
-        {
-            R[RD(inst)] = b0;
-        }
-        else if (FUNCT3(inst) == R5VM_I_F3_LHU)
-        {
-            R[RD(inst)] = b0 | (b1 << 8);
-        }
+        switch (FUNCT3(inst)) {
+        case R5VM_I_F3_LB:  R[rd] = (int8_t)b0; break;
+        case R5VM_I_F3_LH:  R[rd] = (int16_t)(b0 | (b1 << 8)); break;
+        case R5VM_I_F3_LW:  R[rd] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24); break;
+        case R5VM_I_F3_LBU: R[rd] = b0; break;
+        case R5VM_I_F3_LHU: R[rd] = b0 | (b1 << 8); break;
 #ifdef R5VM_DEBUG
-        else
-        {
-            r5vm_error(vm, "Unknown Load funct3", vm->pc-4, inst);
+        default:
+            r5vm_error(vm, "Unknown Load funct3", vm->pc - 4, inst);
             retcode = false;
-        }
 #endif
+        }
         }
         break;
     /* _--------------------- Store ----------------------------------_ */
@@ -344,93 +274,54 @@ bool r5vm_step(r5vm_t* vm)
             break;
         }
 #endif
-        if (FUNCT3(inst) == R5VM_S_F3_SW)
-        {
+        switch (FUNCT3(inst)) {
+        case R5VM_S_F3_SB:
+            vm->mem[(addr + 0) & vm->mem_mask] = (val >> 0) & 0xFF;
+            break;
+        case R5VM_S_F3_SH:
+            vm->mem[(addr + 0) & vm->mem_mask] = (val >> 0) & 0xFF;
+            vm->mem[(addr + 1) & vm->mem_mask] = (val >> 8) & 0xFF;
+            break;
+        case R5VM_S_F3_SW:
             vm->mem[(addr + 0) & vm->mem_mask] = (val >> 0)  & 0xFF;
             vm->mem[(addr + 1) & vm->mem_mask] = (val >> 8)  & 0xFF;
             vm->mem[(addr + 2) & vm->mem_mask] = (val >> 16) & 0xFF;
             vm->mem[(addr + 3) & vm->mem_mask] = (val >> 24) & 0xFF;
-        }
-        else if (FUNCT3(inst) == R5VM_S_F3_SH)
-        {
-            vm->mem[(addr + 0) & vm->mem_mask] = (val >> 0)  & 0xFF;
-            vm->mem[(addr + 1) & vm->mem_mask] = (val >> 8)  & 0xFF;
-        }
-        else if (FUNCT3(inst) == R5VM_S_F3_SB)
-        {
-            vm->mem[(addr + 0) & vm->mem_mask] = (val >> 0)  & 0xFF;
-        }
+            break;
 #ifdef R5VM_DEBUG
-        else
-        {
-            r5vm_error(vm, "Unknown Store funct3", vm->pc-4, inst);
+        default:
+            r5vm_error(vm, "Unknown Store funct3", vm->pc - 4, inst);
             retcode = false;
-        }
 #endif
+        }
         }
         break;
     /* _--------------------- Branch ---------------------------------_ */
     case (R5VM_OPCODE_BRANCH):
-        if (FUNCT3(inst) == R5VM_B_F3_BEQ)
-        {
-            if (R[rs1] == R[rs2])
-            {
-                vm->pc = vm->pc - 4 + IMM_B(inst);
-            }
-        }
-        else if (FUNCT3(inst) == R5VM_B_F3_BNE)
-        {
-            if (R[rs1] != R[rs2])
-            {
-                vm->pc = vm->pc - 4 + IMM_B(inst);
-            }
-        }
-        else if (FUNCT3(inst) == R5VM_B_F3_BLT)
-        {
-            if ((int32_t)R[rs1] < (int32_t)R[rs2])
-            {
-                vm->pc = vm->pc - 4 + IMM_B(inst);
-            }
-        }
-        else if (FUNCT3(inst) == R5VM_B_F3_BGE)
-        {
-            if ((int32_t)R[rs1] >= (int32_t)R[rs2])
-            {
-                vm->pc = vm->pc - 4 + IMM_B(inst);
-            }
-        }
-        else if (FUNCT3(inst) == R5VM_B_F3_BLTU)
-        {
-            if (R[rs1] < R[rs2])
-            {
-                vm->pc = vm->pc - 4 + IMM_B(inst);
-            }
-        }
-        else if (FUNCT3(inst) == R5VM_B_F3_BGEU)
-        {
-            if (R[rs1] >= R[rs2])
-            {
-                vm->pc = vm->pc - 4 + IMM_B(inst);
-            }
-        }
+        switch (FUNCT3(inst)) {
+        case R5VM_B_F3_BEQ:  if (R[rs1] == R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
+        case R5VM_B_F3_BNE:  if (R[rs1] != R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
+        case R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
+        case R5VM_B_F3_BGE:  if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
+        case R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
+        case R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
 #ifdef R5VM_DEBUG
-        else
-        {
-            r5vm_error(vm, "Unknown Branch funct3", vm->pc-4, inst);
+        default:
+            r5vm_error(vm, "Unknown Branch funct3", vm->pc - 4, inst);
             retcode = false;
-        }
 #endif
+        }
         break;
     /* _--------------------- JAL ------------------------------------_ */
     case (R5VM_OPCODE_JAL):
-        R[RD(inst)] = vm->pc;
-        vm->pc = vm->pc - 4 + IMM_J(inst);
+        R[rd] = vm->pc;
+        vm->pc += IMM_J(inst) - 4;
         break;
     /* _--------------------- JALR -----------------------------------_ */
     case (R5VM_OPCODE_JALR):
         if (FUNCT3(inst) == 0x0)
         {
-            R[RD(inst)] = vm->pc;
+            R[rd] = vm->pc;
             vm->pc = (R[rs1] + IMM_I(inst)) & ~1U;
         }
 #ifdef R5VM_DEBUG
@@ -445,14 +336,13 @@ bool r5vm_step(r5vm_t* vm)
     case (R5VM_OPCODE_SYSTEM):
         {
         uint32_t syscall_id = vm->a7;
-        switch (syscall_id)
-        {
+        switch (syscall_id) {
         case 0:
             retcode = false;
             break;
         case 1:
             putchar(vm->a0 & 0xff);
-            fflush();
+            fflush(stdout);
             break;
         default:
             r5vm_error(vm, "Unknown ECALL", vm->pc - 4, syscall_id);
