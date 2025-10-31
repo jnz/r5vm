@@ -1,0 +1,27 @@
+*.bin
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.VC.db*
+*.opendb
+*.ipch
+*.tlog
+*.log
+
+# Build output
+x64/
+[Bb]in/
+[Oo]bj/
+*.pdb
+*.ilk
+*.idb
+*.iobj
+*.ipdb
+*.exe
+
+# Others
+*.tmp
+*.bak
+
