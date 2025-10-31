@@ -1,82 +1,156 @@
-// main.c – simple R5VM loader & runner
 #include <stdio.h>
 #include <stdlib.h>
-#include "r5vm.h"   // dein VM-Header
+#include <string.h>
+#include <ctype.h>
+
+#include "r5vm.h"
 
 // -------------------------------------------------------------
 
-static bool load_file(const char* path, size_t* out_size,
-                      uint8_t* mem, const size_t mem_size) {
-    FILE* f = fopen(path, "rb");
-    printf("[r5vm] opening file: %s\n", path);
-    if (!f) {
-        perror("fopen");
-        return false;
+#define R5VM_MIN_MEM_SIZE   (64 * 1024) // 64 KiB
+
+// -------------------------------------------------------------
+
+static size_t parse_mem_arg(const char* s)
+{
+    char *end;
+    unsigned long val = strtoul(s, &end, 0); // allows 0x... Hex
+    while (isspace((unsigned char)*end)) end++;
+
+    switch (tolower((unsigned char)*end)) {
+        case 'k': val *= 1024UL; break;
+        case 'm': val *= 1024UL * 1024UL; break;
+        case 0: break;
+        default:
+            fprintf(stderr, "warning: unknown suffix '%c' in mem size, using bytes\n", *end);
     }
+    return (size_t)val;
+}
+
+// -------------------------------------------------------------
+
+static bool load_file(const char* path, uint8_t** out_mem, size_t*
+                      out_mem_size, size_t override_mem)
+{
+    FILE* f = fopen(path, "rb");
+    if (!f) { perror("fopen"); return false; }
+
     fseek(f, 0, SEEK_END);
-    size_t size = ftell(f);
-    if (size <= 0) {
+    long fsize = ftell(f);
+    rewind(f);
+    if (fsize <= 0) {
         fclose(f);
         fprintf(stderr, "error: empty file\n");
         return false;
     }
-    rewind(f);
 
-    if (size > mem_size) {
+    // If override_mem is less than fsize, error
+    if (override_mem && override_mem < (size_t)fsize) {
         fclose(f);
-        fprintf(stderr, "error: binary too large (%zu bytes, mem: %zu bytes)\n", size, mem_size);
+        fprintf(stderr, "error: override mem size %zu is less than file size %ld\n",
+                override_mem, fsize);
         return false;
     }
 
-    printf("[r5vm] loading %s (%zu bytes)\n", path, size);
-    if (fread(mem, 1, (size_t)size, f) != (size_t)size) {
+    // Heuristic: +25% or at least fsize+R5VM_MIN_MEM_SIZE
+    size_t base_mem = (size_t)fsize + ((size_t)fsize / 4);
+    if (base_mem < (size_t)fsize + R5VM_MIN_MEM_SIZE) {
+        base_mem = (size_t)fsize + R5VM_MIN_MEM_SIZE;
+    }
+
+    // If user override, use that
+    size_t total_mem = override_mem ? override_mem : base_mem;
+    // Make sure that total_mem is power of two
+    size_t pow2_mem = R5VM_MIN_MEM_SIZE;
+    while (pow2_mem < total_mem)
+        pow2_mem *= 2;
+    total_mem = pow2_mem;
+
+    uint8_t* mem = calloc(total_mem, 1);
+    if (!mem) {
         fclose(f);
-        fprintf(stderr, "error: fread failed\n");
+        perror("calloc");
         return false;
     }
+
+    fread(mem, 1, (size_t)fsize, f);
     fclose(f);
-    if (out_size) *out_size = (size_t)size;
+
+	printf("[r5vm] program=%ld bytes (%ld.%02ld KiB), allocated=%zu bytes (%zu.%02zu KiB)%s\n",
+		fsize,
+		fsize / 1024, (fsize % 1024) * 100 / 1024,
+		total_mem,
+		total_mem / 1024, (total_mem % 1024) * 100 / 1024,
+		override_mem ? " (user override)" : "");
+
+    *out_mem = mem;
+    *out_mem_size = total_mem;
     return true;
 }
 
 // -------------------------------------------------------------
 
+void r5vm_dump_state(const r5vm_t* vm)
+{
+    if (!vm) return;
+
+    printf("---- R5VM STATE DUMP ----\n");
+    printf(" PC:  0x%08X\n", vm->pc);
+
+    for (int i = 0; i < 32; i++) {
+        // 8 registers per line, column aligned
+        if (i % 8 == 0)
+            printf(" x%-2d:", i);
+        printf(" %08X", vm->regs[i]);
+        if (i % 8 == 7 || i == 31)
+            printf("\n");
+    }
+
+    printf(" MEM: 0x%p .. 0x%p (%zu bytes)\n",
+           (void*)vm->mem, (void*)(vm->mem + vm->mem_size - 1), vm->mem_size);
+    printf("--------------------------\n");
+}
+
 void r5vm_error(r5vm_t* vm, const char* msg, uint32_t pc, uint32_t instr)
 {
     fprintf(stderr, "R5VM ERROR at PC=0x%08X: %s (instr=0x%08X)\n", pc, msg, instr);
-    exit(1);
+
+    r5vm_dump_state(vm);
 }
 
-int main(int argc, char** argv) {
+// -------------------------------------------------------------
+
+int main(int argc, char** argv)
+{
     if (argc < 2) {
-        fprintf(stderr, "usage: %s <binary>\n", argv[0]);
+        fprintf(stderr, "usage: %s <binary> [--mem N|Nk|Nm]\n", argv[0]);
+        return 1;
+    }
+
+    size_t override_mem = 0;
+    if (argc >= 4 && strcmp(argv[2], "--mem") == 0)
+        override_mem = parse_mem_arg(argv[3]);
+
+    uint8_t* mem = NULL;
+    size_t mem_size = 0;
+    if (!load_file(argv[1], &mem, &mem_size, override_mem)) {
         return 1;
     }
 
     r5vm_t vm;
-    static uint8_t mem[65536];
-    size_t mem_size = sizeof(mem);
-
-    fprintf(stdout, "[r5vm] R5VM v%s - Base ISA: %s\n", R5VM_VERSION, R5VM_BASE_ISA);
-    fprintf(stdout, "[r5vm] Memory %zu bytes\n", mem_size);
-
-    size_t bin_size = 0;
-    if (!load_file(argv[1], &bin_size, mem, mem_size))
-    {
-        return -1;
-    }
-
     if (!r5vm_init(&vm, mem_size, mem)) {
-        fprintf(stderr, "error: r5vm_create failed\n");
+        fprintf(stderr, "error: r5vm_init failed\n");
+        free(mem);
         return 1;
     }
 
     r5vm_reset(&vm);
-    printf("[r5vm] starting execution...\n");
     int rc = r5vm_run(&vm, -1);
 
     printf("[r5vm] finished, rc=%d\n", rc);
-
     r5vm_destroy(&vm);
+    free(mem);
+
     return 0;
 }
+
