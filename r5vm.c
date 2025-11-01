@@ -125,12 +125,11 @@
 
 // ---- Functions -------------------------------------------------------------
 
-bool r5vm_init(r5vm_t* vm, size_t mem_size, uint8_t* mem)
+bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size)
 {
     if (vm == NULL || mem_size == 0 || mem == NULL) {
         return false;
     }
-
     if (!IS_POWER_OF_TWO(mem_size)) {
         return false;
     }
@@ -138,7 +137,8 @@ bool r5vm_init(r5vm_t* vm, size_t mem_size, uint8_t* mem)
     memset(vm, 0, sizeof(r5vm_t));
     vm->mem = mem;
     vm->mem_size = mem_size;
-    vm->mem_mask = (uint32_t)mem_size - 1;
+    vm->mem_mask = mem_size - 1;
+
     return true;
 }
 

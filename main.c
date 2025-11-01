@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h> // for strcmp
 #include <ctype.h> // for isspace, tolower
+#include <inttypes.h> // for PRIu32
 
 #include "r5vm.h"
 
@@ -142,8 +143,8 @@ static void r5vm_dump_state(const r5vm_t* vm)
             fprintf(stderr, "\n");
     }
 
-    fprintf(stderr, " MEM: 0x%p .. 0x%p (%zu bytes)\n",
-           (void*)vm->mem, (void*)(vm->mem + vm->mem_size - 1), vm->mem_size);
+    fprintf(stderr, " MEM: 0x%p .. 0x%p (%" PRIu32 " bytes)\n",
+            (void*)vm->mem, (void*)(vm->mem + vm->mem_size - 1), vm->mem_size);
     fprintf(stderr, "--------------------------\n");
 }
 
@@ -174,7 +175,7 @@ int main(int argc, char** argv)
     }
 
     r5vm_t vm;
-    if (!r5vm_init(&vm, mem_size, mem)) {
+    if (!r5vm_init(&vm, mem, (uint32_t)mem_size)) {
         fprintf(stderr, "error: r5vm_init failed\n");
         free(mem);
         return 1;

@@ -69,7 +69,7 @@ typedef struct r5vm_s
 
     uint32_t pc;       /**< Program counter (byte address into "mem") */
     uint8_t* mem;      /**< Pointer to VM memory buffer */
-    size_t   mem_size; /**< Total memory size in bytes (must be power of two) */
+    uint32_t mem_size; /**< Total memory size in bytes (must be power of two) */
     uint32_t mem_mask; /**< Address mask for sandbox memory accesses */
 } r5vm_t;
 
@@ -82,12 +82,12 @@ typedef struct r5vm_s
  * The memory size must be a power of two for address wrapping to work.
  *
  * @param vm        Pointer to an uninitialized VM instance.
- * @param mem_size  Size of memory in bytes (power of two).
  * @param mem       Pointer to allocated memory buffer (must be pre-loaded with
  *                  code/data).
+ * @param mem_size  Size of memory in bytes (power of two).
  * @return `true` if initialization succeeded, `false` on invalid parameters.
  */
-bool r5vm_init(r5vm_t* vm, size_t mem_size, uint8_t* mem);
+bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size);
 
 /**
  * @brief Destroy a VM instance.
