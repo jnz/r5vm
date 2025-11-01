@@ -57,7 +57,7 @@ Open `visualstudio/r5vm.sln` and build/run the project in Visual Studio.
 
 ## Running a Guest Program
 
-### Building and Running a Guest Program
+### Building and Running a Guest Program with `gcc`
 
 A minimal RISC-V toolchain (e.g. `riscv64-unknown-elf-gcc`) is required.
 
@@ -77,6 +77,19 @@ This produces:
 - `vm.bin` - raw binary image (feed this to the host vm)
 - `vm.elf` - ELF executable (in case you need it)
 - `vm.dis` - disassembly (to analyze the assembler output)
+
+### Building the Guest Program with `clang`
+
+```bash
+cd guest
+make CC=clang
+```
+
+**Note:** On Ubuntu, install the clang/LLVM toolchain via:
+
+```bash
+sudo apt install clang lld llvm
+```
 
 ### Run the Program in the VM
 
