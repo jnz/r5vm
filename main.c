@@ -103,7 +103,12 @@ static bool load_file(const char* path, uint8_t** out_mem, size_t*
         return false;
     }
 
-    fread(mem, 1, (size_t)fsize, f);
+    size_t nread = fread(mem, 1, (size_t)fsize, f);
+    if (nread != (size_t)fsize) {
+        fprintf(stderr, "error: fread failed (read %zu of %zu bytes)\n", nread, (size_t)fsize);
+        fclose(f);
+        return false;
+    }
     fclose(f);
 
     printf("[r5vm] program=%ld bytes (%ld.%02ld KiB), allocated=%zu bytes (%zu.%02zu KiB)%s\n",
@@ -183,4 +188,5 @@ int main(int argc, char** argv)
 
     return 0;
 }
+
 
