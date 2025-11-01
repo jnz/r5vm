@@ -1,9 +1,39 @@
-#include "r5vm.h"
+/*
+ * R5VM - Minimal RISC-V RV32I Virtual Machine
+ *       _____
+ *      | ____|
+ *  _ __| |____   ___ __ ___
+ * | '__|___ \ \ / / '_ ` _ \
+ * | |   ___) \ V /| | | | | |
+ * |_|  |____/ \_/ |_| |_| |_|
+ *
+ * Copyright (c) 2025 Jan Zwiener
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdio.h> /* for putchar in ecall */
 
-#include <stdio.h>
+#include "r5vm.h"
 
 // ---- Macros ---------------------------------------------------------------
 
@@ -96,13 +126,11 @@
 
 bool r5vm_init(r5vm_t* vm, size_t mem_size, uint8_t* mem)
 {
-    if (vm == NULL || mem_size == 0 || mem == NULL)
-    {
+    if (vm == NULL || mem_size == 0 || mem == NULL) {
         return false;
     }
 
-    if (!IS_POWER_OF_TWO(mem_size))
-    {
+    if (!IS_POWER_OF_TWO(mem_size)) {
         return false;
     }
 
@@ -124,22 +152,11 @@ void r5vm_reset(r5vm_t* vm)
     vm->pc = 0;
 }
 
-bool r5vm_load(r5vm_t* vm, const void* bin, size_t len)
-{
-    if (bin == NULL || len == 0 || len > vm->mem_size)
-    {
-        return false;
-    }
-    memcpy(vm->mem, bin, len);
-    return true;
-}
-
 bool r5vm_step(r5vm_t* vm)
 {
     bool retcode = true;
 #ifdef R5VM_DEBUG
-    if (vm->pc > vm->mem_size - 4)
-    {
+    if (vm->pc > vm->mem_size - 4) {
         r5vm_error(vm, "PC out of bounds", vm->pc, 0);
         return false;
     }
@@ -267,8 +284,7 @@ bool r5vm_step(r5vm_t* vm)
         const uint32_t addr = R[rs1] + IMM_S(inst);
         const uint32_t val  = R[rs2];
 #ifdef R5VM_DEBUG
-        if (addr > vm->mem_size - 4)
-        {
+        if (addr > vm->mem_size - 4) {
             r5vm_error(vm, "Memory access out of bounds", vm->pc-4, inst);
             retcode = false;
             break;
@@ -366,10 +382,8 @@ bool r5vm_step(r5vm_t* vm)
 int r5vm_run(r5vm_t* vm, int max_steps)
 {
     int i;
-    for (i = 0; i < max_steps || max_steps < 0; ++i)
-    {
-        if (!r5vm_step(vm))
-        {
+    for (i = 0; i < max_steps || max_steps < 0; ++i) {
+        if (!r5vm_step(vm)) {
             break;
         }
     }
