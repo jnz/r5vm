@@ -1,4 +1,4 @@
-# R5VM Test Suite Makefile
+# r5vm Test Suite Makefile
 
 # Toolchain
 CROSS   ?= riscv64-unknown-elf
@@ -30,6 +30,10 @@ VM_HDR = $(VM_DIR)/r5vm.h
 # Test runners
 RUNNER = test_runner_advanced
 RUNNER_CFLAGS = -Wall -Wextra -std=c99 -I$(VM_DIR) -DR5VM_DEBUG -O2
+
+GCOVR ?= gcovr
+COV_HTML = coverage.html
+COV_TXT  = coverage.txt
 
 .PHONY: all clean run help coverage disasm
 
@@ -92,6 +96,24 @@ coverage: clean
 	@echo "Generating coverage report..."
 	@# Only generate coverage for r5vm.c (suppress system headers)
 	@gcov r5vm_cov.gcda -o . 2>&1 | grep -E "(r5vm\.c|Lines executed)" || true
+	@echo ""
+	@echo "Generating gcovr summary..."
+	@echo ""
+	@if command -v $(GCOVR) >/dev/null 2>&1; then \
+		echo "[gcovr] text summary:"; \
+		$(GCOVR) -r .. --filter "$(VM_SRC)" --txt -s > $(COV_TXT) || true; \
+		cat $(COV_TXT); \
+		echo ""; \
+		echo "[gcovr] HTML report:"; \
+		$(GCOVR) -r .. --filter "$(VM_SRC)" --html-details $(COV_HTML) || true; \
+		if [ -f $(COV_HTML) ]; then \
+			echo "✓ HTML report generated: $(COV_HTML)"; \
+		else \
+			echo "✗ HTML report not generated (check gcovr output)"; \
+		fi; \
+	else \
+		echo "✗ gcovr not installed, skipping summary."; \
+	fi
 	@# Clean up unwanted .gcov files from system headers
 	@rm -f stdio.h.gcov string_fortified.h.gcov 2>/dev/null || true
 	@echo ""
@@ -115,6 +137,7 @@ clean:
 	@rm -f *.o *.elf *.bin *.list
 	@rm -f *.gcda *.gcno *.gcov
 	@rm -f r5vm_cov.o
+	@rm -f $(COV_HTML) $(COV_TXT) coverage.css coverage*.html
 	@# Clean up system header .gcov files
 	@rm -f stdio.h.gcov string_fortified.h.gcov 2>/dev/null || true
 

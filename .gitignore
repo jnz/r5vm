@@ -38,4 +38,7 @@ tests/test_runner_advanced_cov
 tests/*.gcov
 tests/*.gcda
 tests/*.gcno
+tests/coverage.*html
+tests/coverage.css
+tests/coverage.txt
 
