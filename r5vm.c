@@ -51,20 +51,16 @@
 /* Macros to extract immediate values from instructions */
 #define IMM_I(inst)         SIGN_EXT32(((inst) >> 20) & 0xFFF, 12)
 #define IMM_S(inst)         SIGN_EXT32(((((inst) >> 25) << 5) | \
-                                      (((inst) >> 7) & 0x1F)), 12)
+                                       (((inst) >> 7) & 0x1F)), 12 )
 #define IMM_U(inst)         ((uint32_t)(inst) & 0xFFFFF000)
-#define IMM_B(inst)         SIGN_EXT32( \
-                                ((((inst) >> 31) & 0x1) << 12) | \
-                                ((((inst) >> 7)  & 0x1) << 11) | \
-                                ((((inst) >> 25) & 0x3F) << 5) | \
-                                ((((inst) >> 8)  & 0xF) << 1), \
-                                13)
-#define IMM_J(inst)         SIGN_EXT32( \
-                                (((inst >> 31) & 0x1) << 20) | \
-                                (((inst >> 12) & 0xFF) << 12) | \
-                                (((inst >> 20) & 0x1) << 11) | \
-                                (((inst >> 21) & 0x3FF) << 1), \
-                                21)
+#define IMM_B(inst)         SIGN_EXT32(((((inst) >> 31) & 0x1) << 12) | \
+                                       ((((inst) >> 7)  & 0x1) << 11) | \
+                                       ((((inst) >> 25) & 0x3F) << 5) | \
+                                       ((((inst) >> 8)  & 0xF) << 1), 13)
+#define IMM_J(inst)         SIGN_EXT32((((inst >> 31) & 0x1) << 20) | \
+                                       (((inst >> 12) & 0xFF) << 12) | \
+                                       (((inst >> 20) & 0x1) << 11) | \
+                                       (((inst >> 21) & 0x3FF) << 1), 21)
 
 // ---- Defines ---------------------------------------------------------------
 
@@ -119,10 +115,10 @@
 /* Function 7 */
 #define R5VM_R_F7_ADD       0x00 /**< Add for R-type F3=Add/Sub */
 #define R5VM_R_F7_SUB       0x20 /**< Subtract for R-type F3=Add/Sub */
-#define R5VM_R_F7_SRL       0x00 /**< Shift Right Logical for R-type F3=SRL/SRA */
-#define R5VM_R_F7_SRA       0x20 /**< Shift Right Arith. for R-type F3=SRL/SRA */
+#define R5VM_R_F7_SRL       0x00 /**< Shift Right Logic. f. R-type F3=SRL/SRA */
+#define R5VM_R_F7_SRA       0x20 /**< Shift Right Arith. f. R-type F3=SRL/SRA */
 #define R5VM_I_F7_SRLI      0x00 /**< Shift Right Logic. Imm. I-type F3=SRLI/SRAI */
-#define R5VM_I_F7_SRAI      0x20 /**< Shift R. Arith. Imm. I-type F3=SRLI/SRAI */
+#define R5VM_I_F7_SRAI      0x20 /**< Shift Right Arith. Imm. I-type F3=SRLI/SRAI */
 #define R5VM_I_F7_SLLI      0x00 /**< Shift Left Logic. Imm. for I-type F3=SLLI */
 
 // ---- Functions -------------------------------------------------------------
@@ -135,7 +131,6 @@ bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size)
     if (!IS_POWER_OF_TWO(mem_size)) {
         return false;
     }
-
     memset(vm, 0, sizeof(r5vm_t));
     vm->mem = mem;
     vm->mem_size = mem_size;
@@ -155,7 +150,16 @@ void r5vm_reset(r5vm_t* vm)
     vm->pc = 0;
 }
 
-bool r5vm_step(r5vm_t* vm)
+/**
+ * @brief Execute a single instruction.
+ *
+ * Decodes and executes one RISC-V instruction at the current program counter.
+ * Updates registers and memory accordingly.
+ *
+ * @param vm Pointer to an initialized VM.
+ * @return `true` if execution should continue, `false` on halt or error.
+ */
+static bool r5vm_step(r5vm_t* vm)
 {
     bool retcode = true;
 #ifdef R5VM_DEBUG
@@ -164,17 +168,17 @@ bool r5vm_step(r5vm_t* vm)
         return false;
     }
 #endif
-    /* fetch next instruction */
+    /* fetch next instruction: */
     uint32_t inst =  vm->mem[(vm->pc + 0) & vm->mem_mask]
                   | (vm->mem[(vm->pc + 1) & vm->mem_mask] << 8)
                   | (vm->mem[(vm->pc + 2) & vm->mem_mask] << 16)
                   | (vm->mem[(vm->pc + 3) & vm->mem_mask] << 24);
     vm->pc += 4;
+    /* decode/execute: */
     const uint32_t rd  = RD(inst);
     const uint32_t rs1 = RS1(inst);
     const uint32_t rs2 = RS2(inst);
     uint32_t* R = vm->regs;
-
     switch (OPCODE(inst))
     {
     /* _--------------------- R-Type instuctions ---------------------_ */

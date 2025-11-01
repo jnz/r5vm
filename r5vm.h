@@ -185,17 +185,6 @@ void r5vm_reset(r5vm_t* vm);
  */
 unsigned r5vm_run(r5vm_t* vm, unsigned max_steps);
 
-/**
- * @brief Execute a single instruction.
- *
- * Decodes and executes one RISC-V instruction at the current program counter.
- * Updates registers and memory accordingly.
- *
- * @param vm Pointer to an initialized VM.
- * @return `true` if execution should continue, `false` on halt or error.
- */
-bool r5vm_step(r5vm_t* vm);
-
 // ---- Error -----------------------------------------------------------------
 
 /**
