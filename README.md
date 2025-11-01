@@ -11,8 +11,23 @@
 **R5VM** is a compact, educational **RISC-V RV32I** virtual machine written in pure C.
 It can execute small RISC-V bare-metal programs compiled with e.g. `gcc` into flat binary images.
 
+R5VM focuses on simplicity. Unlike WebAssembly (WASM) or full RISC-V emulators,
+it’s small enough to read and understand in one sitting, making it ideal for
+education, debugging, and embedding rather than speed or completeness.
+
 To integrate R5VM into another project, just drop in `r5vm.c` and `r5vm.h` - no
 additional dependencies or build steps required.
+
+## Features
+
+- Full **RV32I base instruction set**
+  (R/I/S/B/U/J types, including LUI/AUIPC/JAL/JALR)
+- Simple, portable C (C11) code (builds with GCC, Clang, or MSVC)
+- Easy embedding into other projects
+- No dependencies, freestanding-friendly
+- Deterministic execution, ideal for testing and teaching
+
+## Directory Structure
 
 ```
 r5vm/
@@ -29,15 +44,6 @@ r5vm/
 
 ---
 
-## Features
-
-- Full **RV32I base instruction set**
-  (R/I/S/B/U/J types, including LUI/AUIPC/JAL/JALR)
-- Simple, portable C code (builds with GCC, Clang, or MSVC)
-- No dependencies, freestanding-friendly
-
----
-
 ## Building the Host VM
 
 ### GCC / Clang
@@ -48,8 +54,6 @@ make
 ### Visual Studio (MSVC)
 
 Open `visualstudio/r5vm.sln` and build/run the project in Visual Studio.
-
----
 
 ## Running a Guest Program
 
@@ -73,8 +77,6 @@ This produces:
 - `vm.bin` - raw binary image (feed this to the host vm)
 - `vm.elf` - ELF executable (in case you need it)
 - `vm.dis` - disassembly (to analyze the assembler output)
-
----
 
 ### Run the Program in the VM
 
