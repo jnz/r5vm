@@ -91,7 +91,7 @@ static bool load_file(const char* path, uint8_t** out_mem, size_t*
     // If user override, use that
     size_t total_mem = override_mem ? override_mem : base_mem;
     // Make sure that total_mem is power of two
-    size_t pow2_mem = R5VM_MIN_MEM_SIZE;
+    size_t pow2_mem = 8; // start with 8 bytes
     while (pow2_mem < total_mem)
         pow2_mem *= 2;
     total_mem = pow2_mem;
