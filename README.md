@@ -81,7 +81,7 @@ make
 This produces:
 - `vm.bin` - raw binary image (feed this to the host vm)
 - `vm.elf` - ELF executable (in case you need it)
-- `vm.dis` - disassembly (to analyze the assembler output)
+- `vm.list` - disassembly (to analyze the assembler output)
 
 ### Building the Guest Program with `clang`
 
