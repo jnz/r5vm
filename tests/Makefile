@@ -29,7 +29,7 @@ VM_HDR = $(VM_DIR)/r5vm.h
 
 # Test runners
 RUNNER = test_runner_advanced
-RUNNER_CFLAGS = -Wall -Wextra -std=c99 -I$(VM_DIR) -O2
+RUNNER_CFLAGS = -Wall -Wextra -std=c99 -I$(VM_DIR) -DR5VM_DEBUG -O2
 
 .PHONY: all clean run help coverage disasm
 
