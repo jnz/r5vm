@@ -38,6 +38,7 @@
 // ---- Macros ---------------------------------------------------------------
 
 #define IS_POWER_OF_TWO(n)  ((n) != 0 && ((n) & ((n) - 1)) == 0)
+/** Interprete as signed integer with sign extension */
 #define SIGN_EXT32(x,bits)  ((int32_t)((x) << (32 - (bits))) >> (32 - (bits)))
 
 /* Macros to extract fields from the 32-bit RISC-V instructions */
@@ -47,6 +48,7 @@
 #define RS1(inst)           (((inst) >> 15) & 0x1F) /**< source register 1 */
 #define RS2(inst)           (((inst) >> 20) & 0x1F) /**< source register 2 */
 #define FUNCT7(inst)        (((inst) >> 25) & 0x7F) /**< function 7 field */
+/* Macros to extract immediate values from instructions */
 #define IMM_I(inst)         SIGN_EXT32(((inst) >> 20) & 0xFFF, 12)
 #define IMM_S(inst)         SIGN_EXT32(((((inst) >> 25) << 5) | \
                                       (((inst) >> 7) & 0x1F)), 12)
@@ -137,14 +139,14 @@ bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size)
     memset(vm, 0, sizeof(r5vm_t));
     vm->mem = mem;
     vm->mem_size = mem_size;
-    vm->mem_mask = mem_size - 1;
+    vm->mem_mask = mem_size - 1; /* mem_size is power of two */
 
     return true;
 }
 
 void r5vm_destroy(r5vm_t* vm)
 {
-    memset(vm, 0, sizeof(r5vm_t));
+    /* Noop */
 }
 
 void r5vm_reset(r5vm_t* vm)
@@ -208,7 +210,7 @@ bool r5vm_step(r5vm_t* vm)
         case R5VM_R_F3_SLTU: R[rd] = (R[rs1] < R[rs2]); break;
 #ifdef R5VM_DEBUG
         default:
-            r5vm_error(vm, "Unknown R-type funct3", vm->pc - 4, inst);
+            r5vm_error(vm, "Unknown R-type funct3", vm->pc-4, inst);
             retcode = false;
 #endif
         }
@@ -234,14 +236,14 @@ bool r5vm_step(r5vm_t* vm)
             break;
 #ifdef R5VM_DEBUG
         default:
-            r5vm_error(vm, "Unknown I-type funct3", vm->pc - 4, inst);
+            r5vm_error(vm, "Unknown I-type funct3", vm->pc-4, inst);
             retcode = false;
 #endif
         }
         break;
     /* _--------------------- AUIPC -----------------------------------_ */
     case (R5VM_OPCODE_AUIPC):
-        R[rd] = vm->pc - 4 + IMM_U(inst);
+        R[rd] = vm->pc-4 + IMM_U(inst);
         break;
     /* _--------------------- LUI -------------------------------------_ */
     case (R5VM_OPCODE_LUI):
@@ -272,7 +274,7 @@ bool r5vm_step(r5vm_t* vm)
         case R5VM_I_F3_LHU: R[rd] = b0 | (b1 << 8); break;
 #ifdef R5VM_DEBUG
         default:
-            r5vm_error(vm, "Unknown Load funct3", vm->pc - 4, inst);
+            r5vm_error(vm, "Unknown Load funct3", vm->pc-4, inst);
             retcode = false;
 #endif
         }
@@ -306,7 +308,7 @@ bool r5vm_step(r5vm_t* vm)
             break;
 #ifdef R5VM_DEBUG
         default:
-            r5vm_error(vm, "Unknown Store funct3", vm->pc - 4, inst);
+            r5vm_error(vm, "Unknown Store funct3", vm->pc-4, inst);
             retcode = false;
 #endif
         }
@@ -315,15 +317,15 @@ bool r5vm_step(r5vm_t* vm)
     /* _--------------------- Branch ---------------------------------_ */
     case (R5VM_OPCODE_BRANCH):
         switch (FUNCT3(inst)) {
-        case R5VM_B_F3_BEQ:  if (R[rs1] == R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
-        case R5VM_B_F3_BNE:  if (R[rs1] != R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
-        case R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
-        case R5VM_B_F3_BGE:  if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
-        case R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
-        case R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = vm->pc - 4 + IMM_B(inst); break;
+        case R5VM_B_F3_BEQ:  if (R[rs1] == R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
+        case R5VM_B_F3_BNE:  if (R[rs1] != R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
+        case R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
+        case R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
+        case R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
+        case R5VM_B_F3_BGE:  if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
 #ifdef R5VM_DEBUG
         default:
-            r5vm_error(vm, "Unknown Branch funct3", vm->pc - 4, inst);
+            r5vm_error(vm, "Unknown Branch funct3", vm->pc-4, inst);
             retcode = false;
 #endif
         }
@@ -361,7 +363,7 @@ bool r5vm_step(r5vm_t* vm)
             fflush(stdout);
             break;
         default:
-            r5vm_error(vm, "Unknown ECALL", vm->pc - 4, syscall_id);
+            r5vm_error(vm, "Unknown ECALL", vm->pc-4, syscall_id);
             retcode = false;
         }
         }
