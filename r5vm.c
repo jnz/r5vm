@@ -79,14 +79,14 @@
 #define R5VM_OPCODE_FENCE   0x0F /**< Fence Instructions (Noop for R5VM) */
 
 /* Function 3 (F3) */
-#define R5VM_R_F3_ADD_SUB   0x00 /**< Add / Subtract */
-#define R5VM_R_F3_XOR       0x04 /**< Xor */
-#define R5VM_R_F3_OR        0x06 /**< Or */
-#define R5VM_R_F3_AND       0x07 /**< And */
-#define R5VM_R_F3_SLL       0x01 /**< Shift Left Logical */
-#define R5VM_R_F3_SRL_SRA   0x05 /**< Shift Right Logical/Arithmetic */
-#define R5VM_R_F3_SLT       0x02 /**< Set Less Than */
-#define R5VM_R_F3_SLTU      0x03 /**< Set Less Than Unsigned */
+#define R5VM_R_F3_ADD_SUB   0x00 /**< Reg. Add / Subtract */
+#define R5VM_R_F3_XOR       0x04 /**< Reg. Xor */
+#define R5VM_R_F3_OR        0x06 /**< Reg. Or */
+#define R5VM_R_F3_AND       0x07 /**< Reg. And */
+#define R5VM_R_F3_SLL       0x01 /**< Reg. Shift Left Logical */
+#define R5VM_R_F3_SRL_SRA   0x05 /**< Reg. Shift Right Logical/Arithmetic */
+#define R5VM_R_F3_SLT       0x02 /**< Reg. Set Less Than */
+#define R5VM_R_F3_SLTU      0x03 /**< Reg. Set Less Than Unsigned */
 
 #define R5VM_I_F3_ADDI      0x00 /**< Add Immediate */
 #define R5VM_I_F3_XORI      0x04 /**< Xor Immediate */
