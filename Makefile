@@ -1,6 +1,9 @@
 # --- R5VM Host Makefile ----------------------------------------------------
+
+R5VMFLAGS ?= -DR5VM_DEBUG
+
 CC      ?= gcc
-CFLAGS  ?= -std=c99 -O2 -Wall -Wextra
+CFLAGS  ?= -std=c99 -O2 -Wall -Wextra $(R5VMFLAGS)
 TARGET  ?= r5vm
 SRC     = main.c r5vm.c
 OBJ     = $(SRC:.c=.o)
