@@ -52,7 +52,7 @@
  * General-purpose registers are accessible both as an array (`regs`) and
  * through named aliases (e.g., `a0`, `sp`, `t0`, etc.).
  */
-typedef struct r5vm
+typedef struct r5vm_s
 {
     union {
         uint32_t regs[32];  /**< Integer register file (x0–x31) */
