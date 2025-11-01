@@ -2,7 +2,7 @@
 CROSS   = riscv64-unknown-elf
 ARCH    = rv32i
 ABI     = ilp32
-CFLAGS  = -march=$(ARCH) -mabi=$(ABI) -ffreestanding -nostdlib -nostartfiles -O0
+CFLAGS  = -march=$(ARCH) -mabi=$(ABI) -ffreestanding -nostdlib -nostartfiles -O2
 LDFLAGS = -T r5vm.ld
 
 SRC     = crt0.s main.c
