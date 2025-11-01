@@ -146,7 +146,7 @@ bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size)
 
 void r5vm_destroy(r5vm_t* vm)
 {
-    /* Noop */
+    (void)vm;
 }
 
 void r5vm_reset(r5vm_t* vm)
