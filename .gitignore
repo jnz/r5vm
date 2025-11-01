@@ -34,3 +34,8 @@ config.mk
 # tests
 tests/*.bin
 tests/test_runner_advanced
+tests/test_runner_advanced_cov
+tests/*.gcov
+tests/*.gcda
+tests/*.gcno
+
