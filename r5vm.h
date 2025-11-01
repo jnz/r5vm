@@ -28,6 +28,43 @@
  * THE SOFTWARE.
  */
 
+/**
+ * @mainpage R5VM - Minimal RISC-V RV32I Virtual Machine
+ *
+ * @section intro Introduction
+ *
+ * R5VM is a compact virtual machine that emulates a 32-bit RISC-V (RV32I) core
+ * with a flat 32-bit address space. It is designed for simplicity, readability,
+ * and portability. Suitable for educational use or lightweight emulation.
+ *
+ * @section usage Quick Start
+ *
+ * 1. Include `r5vm.h` in your project.
+ * 2. Allocate a memory buffer and load your compiled RV32I program into it.
+ *    (see the `guest/` example for how to produce a binary such as `vm.bin`).
+ * 3. Create and initialize the VM:
+ *    @code
+ *    r5vm_t vm;
+ *    r5vm_init(&vm, memory, memory_size);
+ *    r5vm_reset(&vm);
+ *    @endcode
+ * 4. Run the program:
+ *    @code
+ *    r5vm_run(&vm, 0); // 0 = unlimited steps
+ *    @endcode
+ * 5. Implement `r5vm_error()` in your code to handle runtime errors.
+ * 6. After execution, inspect registers or memory as needed.
+ *
+ * @section notes Notes
+ *
+ * - `mem_size` must be a power of two for address wrapping to work.
+ * - `r5vm_destroy()` clears state but does not free the memory buffer.
+ * - The base ISA supported is **RV32I** (no M/A/F/D extensions).
+ *
+ * @section license License
+ * This project is released under the MIT License.
+ */
+
 #ifndef R5VM_H
 #define R5VM_H
 
