@@ -1,4 +1,5 @@
-*.bin
+r5vm
+*.o
 
 # Visual Studio
 .vs/
@@ -11,6 +12,9 @@
 *.log
 
 # Build output
+guest/vm.bin
+guest/vm.dis
+guest/vm.elf
 x64/
 [Bb]in/
 [Oo]bj/
