@@ -91,7 +91,7 @@ static bool load_file(const char* path, uint8_t** out_mem, size_t*
     // If user override, use that
     size_t total_mem = override_mem ? override_mem : base_mem;
     // Make sure that total_mem is power of two
-    size_t pow2_mem = 8; // start with 8 bytes
+    size_t pow2_mem = 64;
     while (pow2_mem < total_mem)
         pow2_mem *= 2;
     total_mem = pow2_mem;
@@ -111,11 +111,11 @@ static bool load_file(const char* path, uint8_t** out_mem, size_t*
     }
     fclose(f);
 
-    printf("[r5vm] program=%ld bytes (%ld.%02ld KiB), allocated=%zu bytes (%zu.%02zu KiB)%s\n",
+    fprintf(stderr, "[r5vm] program=%ld bytes (%ld.%02ld KiB), allocated=%zu bytes (%zu KiB)%s\n",
         fsize,
         fsize / 1024, (fsize % 1024) * 100 / 1024,
         total_mem,
-        total_mem / 1024, (total_mem % 1024) * 100 / 1024,
+        total_mem / 1024,
         override_mem ? " (user override)" : "");
 
     *out_mem = mem;
@@ -129,21 +129,21 @@ static void r5vm_dump_state(const r5vm_t* vm)
 {
     if (!vm) return;
 
-    printf("---- R5VM STATE DUMP ----\n");
-    printf(" PC:  0x%08X\n", vm->pc);
+    fprintf(stderr, "---- R5VM STATE DUMP ----\n");
+    fprintf(stderr, " PC:  0x%08X\n", vm->pc);
 
     for (int i = 0; i < 32; i++) {
         // 8 registers per line, column aligned
         if (i % 8 == 0)
-            printf(" x%-2d:", i);
-        printf(" %08X", vm->regs[i]);
+            fprintf(stderr, " x%-2d:", i);
+        fprintf(stderr, " %08X", vm->regs[i]);
         if (i % 8 == 7 || i == 31)
-            printf("\n");
+            fprintf(stderr, "\n");
     }
 
-    printf(" MEM: 0x%p .. 0x%p (%zu bytes)\n",
+    fprintf(stderr, " MEM: 0x%p .. 0x%p (%zu bytes)\n",
            (void*)vm->mem, (void*)(vm->mem + vm->mem_size - 1), vm->mem_size);
-    printf("--------------------------\n");
+    fprintf(stderr, "--------------------------\n");
 }
 
 void r5vm_error(r5vm_t* vm, const char* msg, uint32_t pc, uint32_t instr)
@@ -180,13 +180,11 @@ int main(int argc, char** argv)
     }
 
     r5vm_reset(&vm);
-    int rc = r5vm_run(&vm, -1);
+    r5vm_run(&vm, -1);
 
-    printf("[r5vm] finished, rc=%d\n", rc);
     r5vm_destroy(&vm);
     free(mem);
 
     return 0;
 }
-
 
