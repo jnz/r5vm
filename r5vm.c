@@ -38,7 +38,7 @@
 // ---- Macros ---------------------------------------------------------------
 
 #define IS_POWER_OF_TWO(n)  ((n) != 0 && ((n) & ((n) - 1)) == 0)
-#define SIGN_EXT(x,bits)    ((int32_t)((x) << (32 - (bits))) >> (32 - (bits)))
+#define SIGN_EXT32(x,bits)  ((int32_t)((x) << (32 - (bits))) >> (32 - (bits)))
 
 #define OPCODE(inst)        ((inst) & 0x7F)
 #define RD(inst)            (((inst) >> 7)  & 0x1F)
@@ -46,17 +46,17 @@
 #define RS1(inst)           (((inst) >> 15) & 0x1F)
 #define RS2(inst)           (((inst) >> 20) & 0x1F)
 #define FUNCT7(inst)        (((inst) >> 25) & 0x7F)
-#define IMM_I(inst)         SIGN_EXT(((inst) >> 20) & 0xFFF, 12)
-#define IMM_S(inst)         SIGN_EXT(((((inst) >> 25) << 5) | \
+#define IMM_I(inst)         SIGN_EXT32(((inst) >> 20) & 0xFFF, 12)
+#define IMM_S(inst)         SIGN_EXT32(((((inst) >> 25) << 5) | \
                                       (((inst) >> 7) & 0x1F)), 12)
 #define IMM_U(inst)         ((uint32_t)(inst) & 0xFFFFF000)
-#define IMM_B(inst)         SIGN_EXT( \
+#define IMM_B(inst)         SIGN_EXT32( \
                                 ((((inst) >> 31) & 0x1) << 12) | \
                                 ((((inst) >> 7)  & 0x1) << 11) | \
                                 ((((inst) >> 25) & 0x3F) << 5) | \
                                 ((((inst) >> 8)  & 0xF) << 1), \
                                 13)
-#define IMM_J(inst)         SIGN_EXT( \
+#define IMM_J(inst)         SIGN_EXT32( \
                                 (((inst >> 31) & 0x1) << 20) | \
                                 (((inst >> 12) & 0xFF) << 12) | \
                                 (((inst >> 20) & 0x1) << 11) | \
