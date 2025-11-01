@@ -44,18 +44,23 @@ r5vm/
 
 ---
 
-## Building the Host VM
+## Building the Host VM (`r5vm`)
 
-### GCC / Clang
+### GCC
 ```bash
 make
 ```
 
-### Visual Studio (MSVC)
+### clang
+```bash
+make CC=clang
+```
+
+### Visual Studio (`r5vm.exe`)
 
 Open `visualstudio/r5vm.sln` and build/run the project in Visual Studio.
 
-## Running a Guest Program
+## Running a Guest Program (`vm.bin`)
 
 ### Building and Running a Guest Program with `gcc`
 
@@ -108,9 +113,7 @@ Optional: specify memory size explicitly
 
 ```
 [r5vm] program=18247 bytes (17.82 KiB), allocated=65536 bytes (64.00 KiB)
-[r5vm] starting execution...
 Hello, world!
-[r5vm] finished, rc=127
 ```
 
 ---
