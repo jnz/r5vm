@@ -283,15 +283,15 @@ static bool r5vm_step(r5vm_t* vm)
 #endif
         switch (FUNCT3(inst)) {
         case R5VM_S_F3_SW: // 32-bit store (4 bytes)
-			vm->mem[(addr + 3) & vm->mem_mask] = (R[rs2] >> 24) & 0xFF;
-			vm->mem[(addr + 2) & vm->mem_mask] = (R[rs2] >> 16) & 0xFF;
-			/* fall through */
-		case R5VM_S_F3_SH: // 16-bit store (2 bytes)
-			vm->mem[(addr + 1) & vm->mem_mask] = (R[rs2] >> 8) & 0xFF;
-			/* fall through */
-		case R5VM_S_F3_SB: // 8-bit store (1 byte)
-			vm->mem[(addr + 0) & vm->mem_mask] = (R[rs2] >> 0) & 0xFF;
-			break;
+            vm->mem[(addr + 3) & vm->mem_mask] = (R[rs2] >> 24) & 0xFF;
+            vm->mem[(addr + 2) & vm->mem_mask] = (R[rs2] >> 16) & 0xFF;
+            /* fall through */
+        case R5VM_S_F3_SH: // 16-bit store (2 bytes)
+            vm->mem[(addr + 1) & vm->mem_mask] = (R[rs2] >> 8) & 0xFF;
+            /* fall through */
+        case R5VM_S_F3_SB: // 8-bit store (1 byte)
+            vm->mem[(addr + 0) & vm->mem_mask] = (R[rs2] >> 0) & 0xFF;
+            break;
 #ifdef R5VM_DEBUG
         default:
             r5vm_error(vm, "Illegal store width", vm->pc-4, inst);
