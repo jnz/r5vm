@@ -1,0 +1,23 @@
+# Expected register values for test_registers.s
+# Format: <reg_name> = <value>
+# Value can be decimal or hex (0x...)
+
+# Success code
+a0 = 0
+
+# Test values loaded
+a1 = 0x12345678
+a2 = 0xDEADBEEF
+a3 = 42
+a4 = 0xFFFFFF9C  # -100 in two's complement
+
+# Bit patterns
+t0 = 0xAAAAAAAA
+t1 = 0x55555555
+
+# Computed values
+s0 = 0x123456A2  # a1 + a3
+s1 = 0xDEADBEC5  # a2 - a3
+s2 = 0x00000000  # t0 & t1
+s3 = 0xFFFFFFFF  # t0 | t1
+s4 = 0xFFFFFFFF  # t0 ^ t1
