@@ -40,12 +40,13 @@
 #define IS_POWER_OF_TWO(n)  ((n) != 0 && ((n) & ((n) - 1)) == 0)
 #define SIGN_EXT32(x,bits)  ((int32_t)((x) << (32 - (bits))) >> (32 - (bits)))
 
-#define OPCODE(inst)        ((inst) & 0x7F)
-#define RD(inst)            (((inst) >> 7)  & 0x1F)
-#define FUNCT3(inst)        (((inst) >> 12) & 0x07)
-#define RS1(inst)           (((inst) >> 15) & 0x1F)
-#define RS2(inst)           (((inst) >> 20) & 0x1F)
-#define FUNCT7(inst)        (((inst) >> 25) & 0x7F)
+/* Macros to extract fields from the 32-bit RISC-V instructions */
+#define OPCODE(inst)        ((inst) & 0x7F) /**< opcode field */
+#define RD(inst)            (((inst) >> 7)  & 0x1F) /**< destination register */
+#define FUNCT3(inst)        (((inst) >> 12) & 0x07) /**< function 3 field */
+#define RS1(inst)           (((inst) >> 15) & 0x1F) /**< source register 1 */
+#define RS2(inst)           (((inst) >> 20) & 0x1F) /**< source register 2 */
+#define FUNCT7(inst)        (((inst) >> 25) & 0x7F) /**< function 7 field */
 #define IMM_I(inst)         SIGN_EXT32(((inst) >> 20) & 0xFFF, 12)
 #define IMM_S(inst)         SIGN_EXT32(((((inst) >> 25) << 5) | \
                                       (((inst) >> 7) & 0x1F)), 12)
@@ -65,62 +66,62 @@
 
 // ---- Defines ---------------------------------------------------------------
 
-#define R5VM_OPCODE_R_TYPE  0x33 // Register-Register operations
-#define R5VM_OPCODE_I_TYPE  0x13 // Register-Immediate operations
-#define R5VM_OPCODE_LW      0x03 // Load Instructions
-#define R5VM_OPCODE_SW      0x23 // Store Instructions
-#define R5VM_OPCODE_SYSTEM  0x73 // System Call Instructions
-#define R5VM_OPCODE_AUIPC   0x17 // Add Upper Immediate to PC
-#define R5VM_OPCODE_BRANCH  0x63 // Branch Instructions
-#define R5VM_OPCODE_LUI     0x37 // Load Upper Immediate
-#define R5VM_OPCODE_JAL     0x6F // Jump and Link
-#define R5VM_OPCODE_JALR    0x67 // Jump and Link Register
-#define R5VM_OPCODE_FENCE   0x0F // Fence Instructions (Noop for R5VM)
+#define R5VM_OPCODE_R_TYPE  0x33 /**< Register-Register operations */
+#define R5VM_OPCODE_I_TYPE  0x13 /**< Register-Immediate operations */
+#define R5VM_OPCODE_LW      0x03 /**< Load Instructions */
+#define R5VM_OPCODE_SW      0x23 /**< Store Instructions */
+#define R5VM_OPCODE_SYSTEM  0x73 /**< System Call Instructions */
+#define R5VM_OPCODE_AUIPC   0x17 /**< Add Upper Immediate to PC */
+#define R5VM_OPCODE_BRANCH  0x63 /**< Branch Instructions */
+#define R5VM_OPCODE_LUI     0x37 /**< Load Upper Immediate */
+#define R5VM_OPCODE_JAL     0x6F /**< Jump and Link */
+#define R5VM_OPCODE_JALR    0x67 /**< Jump and Link Register */
+#define R5VM_OPCODE_FENCE   0x0F /**< Fence Instructions (Noop for R5VM) */
 
 /* Function 3 (F3) */
-#define R5VM_R_F3_ADD_SUB   0x00 // Add / Subtract
-#define R5VM_R_F3_XOR       0x04 // Xor
-#define R5VM_R_F3_OR        0x06 // Or
-#define R5VM_R_F3_AND       0x07 // And
-#define R5VM_R_F3_SLL       0x01 // Shift Left Logical
-#define R5VM_R_F3_SRL_SRA   0x05 // Shift Right Logical/Arithmetic
-#define R5VM_R_F3_SLT       0x02 // Set Less Than
-#define R5VM_R_F3_SLTU      0x03 // Set Less Than Unsigned
+#define R5VM_R_F3_ADD_SUB   0x00 /**< Add / Subtract */
+#define R5VM_R_F3_XOR       0x04 /**< Xor */
+#define R5VM_R_F3_OR        0x06 /**< Or */
+#define R5VM_R_F3_AND       0x07 /**< And */
+#define R5VM_R_F3_SLL       0x01 /**< Shift Left Logical */
+#define R5VM_R_F3_SRL_SRA   0x05 /**< Shift Right Logical/Arithmetic */
+#define R5VM_R_F3_SLT       0x02 /**< Set Less Than */
+#define R5VM_R_F3_SLTU      0x03 /**< Set Less Than Unsigned */
 
-#define R5VM_I_F3_ADDI      0x00 // Add Immediate
-#define R5VM_I_F3_XORI      0x04 // Xor Immediate
-#define R5VM_I_F3_ORI       0x06 // Or Immediate
-#define R5VM_I_F3_ANDI      0x07 // And Immediate
-#define R5VM_I_F3_SLLI      0x01 // Shift Left Logical Immediate
-#define R5VM_I_F3_SRLI_SRAI 0x05 // Shift Right Logical/Arithmetic Immediate
-#define R5VM_I_F3_SLTI      0x02 // Set Less Than Immediate
-#define R5VM_I_F3_SLTIU     0x03 // Set Less Than Immediate Unsigned
+#define R5VM_I_F3_ADDI      0x00 /**< Add Immediate */
+#define R5VM_I_F3_XORI      0x04 /**< Xor Immediate */
+#define R5VM_I_F3_ORI       0x06 /**< Or Immediate */
+#define R5VM_I_F3_ANDI      0x07 /**< And Immediate */
+#define R5VM_I_F3_SLLI      0x01 /**< Shift Left Logical Immediate */
+#define R5VM_I_F3_SRLI_SRAI 0x05 /**< Shift Right Logical/Arithmetic Immediate */
+#define R5VM_I_F3_SLTI      0x02 /**< Set Less Than Immediate */
+#define R5VM_I_F3_SLTIU     0x03 /**< Set Less Than Immediate Unsigned */
 
-#define R5VM_I_F3_LB        0x00 // Load Byte
-#define R5VM_I_F3_LH        0x01 // Load Halfword
-#define R5VM_I_F3_LW        0x02 // Load Word: R[rd] = M[R[rs1]+SE(imm)]
-#define R5VM_I_F3_LBU       0x04 // Load Byte Unsigned
-#define R5VM_I_F3_LHU       0x05 // Load Halfword Unsigned
+#define R5VM_I_F3_LB        0x00 /**< Load Byte */
+#define R5VM_I_F3_LH        0x01 /**< Load Halfword */
+#define R5VM_I_F3_LW        0x02 /**< Load Word: R[rd] = M[R[rs1]+SE(imm)] */
+#define R5VM_I_F3_LBU       0x04 /**< Load Byte Unsigned */
+#define R5VM_I_F3_LHU       0x05 /**< Load Halfword Unsigned */
 
-#define R5VM_S_F3_SB        0x00 // Store Byte
-#define R5VM_S_F3_SH        0x01 // Store Halfword
-#define R5VM_S_F3_SW        0x02 // Store Word: M[R[rs1]+SE(imm)] = R[rs2]
+#define R5VM_S_F3_SB        0x00 /**< Store Byte */
+#define R5VM_S_F3_SH        0x01 /**< Store Halfword */
+#define R5VM_S_F3_SW        0x02 /**< Store Word: M[R[rs1]+SE(imm)] = R[rs2] */
 
-#define R5VM_B_F3_BEQ       0x00 // Branch if Equal
-#define R5VM_B_F3_BNE       0x01 // Branch if Not Equal
-#define R5VM_B_F3_BLT       0x04 // Branch if Less Than
-#define R5VM_B_F3_BGE       0x05 // Branch if Greater or Equal
-#define R5VM_B_F3_BLTU      0x06 // Branch if Unsigned Less Than
-#define R5VM_B_F3_BGEU      0x07 // Branch if Unsigned Greater or Equal
+#define R5VM_B_F3_BEQ       0x00 /**< Branch if Equal */
+#define R5VM_B_F3_BNE       0x01 /**< Branch if Not Equal */
+#define R5VM_B_F3_BLT       0x04 /**< Branch if Less Than */
+#define R5VM_B_F3_BGE       0x05 /**< Branch if Greater or Equal */
+#define R5VM_B_F3_BLTU      0x06 /**< Branch if Unsigned Less Than */
+#define R5VM_B_F3_BGEU      0x07 /**< Branch if Unsigned Greater or Equal */
 
 /* Function 7 */
-#define R5VM_R_F7_ADD       0x00 // Add for R-type F3=Add/Sub
-#define R5VM_R_F7_SUB       0x20 // Subtract for R-type F3=Add/Sub
-#define R5VM_R_F7_SRL       0x00 // Shift Right Logical for R-type F3=SRL/SRA
-#define R5VM_R_F7_SRA       0x20 // Shift Right Arith. for R-type F3=SRL/SRA
-#define R5VM_I_F7_SRLI      0x00 // Shift Right Logic. Imm. I-type F3=SRLI/SRAI
-#define R5VM_I_F7_SRAI      0x20 // Shift R. Arith. Imm. I-type F3=SRLI/SRAI
-#define R5VM_I_F7_SLLI      0x00 // Shift Left Logic. Imm. for I-type F3=SLLI
+#define R5VM_R_F7_ADD       0x00 /**< Add for R-type F3=Add/Sub */
+#define R5VM_R_F7_SUB       0x20 /**< Subtract for R-type F3=Add/Sub */
+#define R5VM_R_F7_SRL       0x00 /**< Shift Right Logical for R-type F3=SRL/SRA */
+#define R5VM_R_F7_SRA       0x20 /**< Shift Right Arith. for R-type F3=SRL/SRA */
+#define R5VM_I_F7_SRLI      0x00 /**< Shift Right Logic. Imm. I-type F3=SRLI/SRAI */
+#define R5VM_I_F7_SRAI      0x20 /**< Shift R. Arith. Imm. I-type F3=SRLI/SRAI */
+#define R5VM_I_F7_SLLI      0x00 /**< Shift Left Logic. Imm. for I-type F3=SLLI */
 
 // ---- Functions -------------------------------------------------------------
 
