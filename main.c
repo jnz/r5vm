@@ -181,7 +181,7 @@ int main(int argc, char** argv)
     }
 
     r5vm_reset(&vm);
-    r5vm_run(&vm, -1);
+    r5vm_run(&vm, 0);
 
     r5vm_destroy(&vm);
     free(mem);

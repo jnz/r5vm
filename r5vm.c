@@ -378,10 +378,10 @@ bool r5vm_step(r5vm_t* vm)
     return retcode;
 }
 
-int r5vm_run(r5vm_t* vm, int max_steps)
+unsigned r5vm_run(r5vm_t* vm, unsigned max_steps)
 {
-    int i;
-    for (i = 0; i < max_steps || max_steps < 0; ++i) {
+    unsigned i;
+    for (i = 0; i < max_steps || max_steps == 0; i++) {
         if (!r5vm_step(vm)) {
             break;
         }

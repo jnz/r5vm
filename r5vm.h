@@ -124,14 +124,14 @@ bool    r5vm_step(r5vm_t* vm);
 /**
  * @brief Run the VM for a given number of steps.
  *
- * Executes up to `max_steps` instructions, or indefinitely if `max_steps < 0`.
+ * Executes up to `max_steps` instructions, or indefinitely if `max_steps == 0`.
  * Stops when a halt condition or error occurs.
  *
  * @param vm         Pointer to an initialized VM.
- * @param max_steps  Maximum instruction count, or -1 for unlimited.
+ * @param max_steps  Maximum instruction count, or 0 for unlimited.
  * @return Number of executed steps before halting.
  */
-int     r5vm_run(r5vm_t* vm, int max_steps);
+unsigned r5vm_run(r5vm_t* vm, unsigned max_steps);
 
 // ---- Error -----------------------------------------------------------------
 
