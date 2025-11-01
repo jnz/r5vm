@@ -19,6 +19,9 @@ all: vm.bin
 
 vm.elf: $(OBJ) r5vm.ld
 	$(CROSS)-gcc $(CFLAGS) $(LDFLAGS) -o $@ $(OBJ) -lgcc
+	@echo
+	@echo "Section sizes (bytes):"
+	@$(CROSS)-size -A -d $@
 
 vm.bin: vm.elf
 	$(CROSS)-objcopy -O binary $< $@
