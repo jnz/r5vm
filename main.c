@@ -107,6 +107,7 @@ static bool load_file(const char* path, uint8_t** out_mem, size_t*
     if (nread != (size_t)fsize) {
         fprintf(stderr, "error: fread failed (read %zu of %zu bytes)\n", nread, (size_t)fsize);
         fclose(f);
+        free(mem);
         return false;
     }
     fclose(f);
