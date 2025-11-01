@@ -19,4 +19,7 @@ $(TARGET): $(OBJ)
 clean:
 	rm -f $(OBJ) $(TARGET)
 
+test:
+	@$(MAKE) -C tests run
+
 .PHONY: all clean

@@ -31,3 +31,6 @@ x64/
 
 config.mk
 
+# tests
+tests/*.bin
+tests/test_runner_advanced
