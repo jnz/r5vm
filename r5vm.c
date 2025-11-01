@@ -183,8 +183,7 @@ bool r5vm_step(r5vm_t* vm)
     uint32_t debug_imm_u  = IMM_U(inst);
 #endif
 
-    uint8_t opcode = OPCODE(inst);
-    switch (opcode)
+    switch (OPCODE(inst))
     {
     /* _--------------------- R-Type instuctions ---------------------_ */
     case (R5VM_OPCODE_R_TYPE):
