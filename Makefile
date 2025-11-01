@@ -18,6 +18,7 @@ $(TARGET): $(OBJ)
 
 clean:
 	rm -f $(OBJ) $(TARGET)
+	@$(MAKE) -C tests clean
 
 test:
 	@$(MAKE) -C tests run
