@@ -32,14 +32,14 @@ additional dependencies or build steps required.
 ```
 r5vm/
 ├── main.c          # host loader & runner
-├── Makefile        # host build
+├── Makefile        # run make to build host application "r5vm"
 ├── r5vm.c/.h       # VM core
 ├── guest/
-│   ├── main.c      # guest example
-│   ├── r5vm.ld     # linker script
-│   └── Makefile    # guest build
+│   ├── main.c      # guest example .c template
+│   ├── r5vm.ld     # linker script for guest example
+│   └── Makefile    # Run make to build guest binary "vm.bin"
 └── visualstudio/
-    └── r5vm.sln    # Visual Studio 2022 project file
+    └── r5vm.sln    # Visual Studio 2022 project file for host program
 ```
 
 ---
