@@ -55,19 +55,45 @@
 typedef struct r5vm_s
 {
     union {
-        uint32_t regs[32];  /**< Integer register file (x0–x31) */
-        int32_t  regsi[32]; /**< Signed view of integer registers */
+        uint32_t regs[32];  /**< Raw 32-bit integer registers (x0–x31). */
+        int32_t  regsi[32]; /**< Signed 32-bit view of the same registers */
         struct {
-            uint32_t zero, ra, sp, gp, tp;
-            uint32_t t0, t1, t2;
-            uint32_t s0, s1;
-            uint32_t a0, a1, a2, a3, a4, a5, a6, a7;
-            uint32_t s2, s3, s4, s5, s6, s7, s8, s9, s10, s11;
-            uint32_t t3, t4, t5, t6;
+            uint32_t zero; /**< x0: Hardwired zero reg. (writes ignored). */
+            uint32_t ra;   /**< x1: Return address register (used by jumps). */
+            uint32_t sp;   /**< x2: Stack pointer. */
+            uint32_t gp;   /**< x3: Global data pointer. */
+            uint32_t tp;   /**< x4: Thread local storage pointer. */
+            uint32_t t0;   /**< x5: Temporary register 0. */
+            uint32_t t1;   /**< x6: Temporary register 1. */
+            uint32_t t2;   /**< x7: Temporary register 2. */
+            uint32_t s0;   /**< x8: Saved register 0 / frame pointer (fp). */
+            uint32_t s1;   /**< x9: Saved register 1. */
+            uint32_t a0;   /**< x10: Argument/return value 0. */
+            uint32_t a1;   /**< x11: Argument/return value 1. */
+            uint32_t a2;   /**< x12: Argument register 2. */
+            uint32_t a3;   /**< x13: Argument register 3. */
+            uint32_t a4;   /**< x14: Argument register 4. */
+            uint32_t a5;   /**< x15: Argument register 5. */
+            uint32_t a6;   /**< x16: Argument register 6. */
+            uint32_t a7;   /**< x17: Argument register 7 / syscall number. */
+            uint32_t s2;   /**< x18: Saved register 2. */
+            uint32_t s3;   /**< x19: Saved register 3. */
+            uint32_t s4;   /**< x20: Saved register 4. */
+            uint32_t s5;   /**< x21: Saved register 5. */
+            uint32_t s6;   /**< x22: Saved register 6. */
+            uint32_t s7;   /**< x23: Saved register 7. */
+            uint32_t s8;   /**< x24: Saved register 8. */
+            uint32_t s9;   /**< x25: Saved register 9. */
+            uint32_t s10;  /**< x26: Saved register 10. */
+            uint32_t s11;  /**< x27: Saved register 11. */
+            uint32_t t3;   /**< x28: Temporary register 3. */
+            uint32_t t4;   /**< x29: Temporary register 4. */
+            uint32_t t5;   /**< x30: Temporary register 5. */
+            uint32_t t6;   /**< x31: Temporary register 6. */
         };
     };
 
-    uint32_t pc;       /**< Program counter (byte address into "mem") */
+    uint32_t pc;       /**< Program counter (byte offset into "mem") */
     uint8_t* mem;      /**< Pointer to VM memory buffer */
     uint32_t mem_size; /**< Total memory size in bytes (must be power of two) */
     uint32_t mem_mask; /**< Address mask for sandbox memory accesses */
@@ -84,7 +110,7 @@ typedef struct r5vm_s
  * @param vm        Pointer to an uninitialized VM instance.
  * @param mem       Pointer to allocated memory buffer (must be pre-loaded with
  *                  code/data).
- * @param mem_size  Size of memory in bytes (power of two).
+ * @param mem_size  Size of mem buffer in bytes (power of two).
  * @return `true` if initialization succeeded, `false` on invalid parameters.
  */
 bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size);
@@ -93,7 +119,7 @@ bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size);
  * @brief Destroy a VM instance.
  *
  * Clears all internal fields of the VM structure.
- * Does **not** free the memory buffer; ownership remains with the caller.
+ * Does **not** free the memory buffer. Ownership remains with the caller.
  *
  * @param vm Pointer to a VM instance.
  */
