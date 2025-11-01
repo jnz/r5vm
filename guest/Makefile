@@ -1,32 +1,86 @@
 # --- R5VM Bare-Metal Makefile ------------------------------------
-CROSS   = riscv64-unknown-elf
+
+# Cross prefix and default toolchain
+CROSS   ?= riscv64-unknown-elf
+
+# Only define if unset or implicit default:
+ifneq ($(filter undefined default,$(origin CC)),)
+  CC := $(CROSS)-gcc
+endif
+ifneq ($(filter undefined default,$(origin AS)),)
+  AS := $(CROSS)-as
+endif
+ifneq ($(filter undefined default,$(origin LD)),)
+  LD := $(CROSS)-gcc
+endif
+ifneq ($(filter undefined default,$(origin OBJCOPY)),)
+  OBJCOPY := $(CROSS)-objcopy
+endif
+ifneq ($(filter undefined default,$(origin OBJDUMP)),)
+  OBJDUMP := $(CROSS)-objdump
+endif
+ifneq ($(filter undefined default,$(origin SIZE)),)
+  SIZE := $(CROSS)-size
+endif
+
+
+# Architecture and ABI
 ARCH    = rv32i
 ABI     = ilp32
-CFLAGS  = -march=$(ARCH) -mabi=$(ABI) -ffreestanding -nostdlib -nostartfiles -O2
-LDFLAGS = -T r5vm.ld
+OPT     ?= -O2
 
 SRC     = crt0.s main.c
 OBJ     = $(SRC:.c=.o)
 OBJ     := $(OBJ:.s=.o)
 
+# Default flags (GCC)
+CFLAGS  = -march=$(ARCH) -mabi=$(ABI) -ffreestanding $(OPT)
+ASFLAGS = -march=$(ARCH) -mabi=$(ABI)
+LDFLAGS = -T r5vm.ld -nostdlib -nostartfiles
+LIBS    = -lgcc
+
+# --- Clang adjustments --------------------------------------------
+ifeq ($(CC),clang)
+  CROSS   :=
+  AS      = clang
+  LD      = clang
+  OBJCOPY = llvm-objcopy
+  OBJDUMP = llvm-objdump
+  SIZE    = llvm-size
+
+  CFLAGS  = --target=riscv32-unknown-elf -march=$(ARCH) -mabi=$(ABI) \
+            -ffreestanding $(OPT)
+  ASFLAGS = --target=riscv32-unknown-elf -march=$(ARCH) -mabi=$(ABI)
+  LDFLAGS = -T r5vm.ld -nostdlib
+  LIBS    =
+endif
+
+$(info [r5vm] compiler:      $(CC))
+$(info [r5vm] optimization:  $(OPT))
+$(info [r5vm] arch/abi:      $(ARCH)/$(ABI))
+
+# --- Include optional local overrides -----------------------------
+-include config.mk
+
+# --- Build rules --------------------------------------------------
 all: vm.bin
 
 %.o: %.s
-	$(CROSS)-as -march=$(ARCH) -mabi=$(ABI) -o $@ $<
+	$(AS) $(ASFLAGS) -c -o $@ $<
 
 %.o: %.c
-	$(CROSS)-gcc $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 vm.elf: $(OBJ) r5vm.ld
-	$(CROSS)-gcc $(CFLAGS) $(LDFLAGS) -o $@ $(OBJ) -lgcc
+	$(LD) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
 	@echo
 	@echo "Section sizes (bytes):"
-	@$(CROSS)-size -A -d $@
+	@$(SIZE) -A -d $@
 
 vm.bin: vm.elf
-	$(CROSS)-objcopy -O binary $< $@
-	$(CROSS)-objdump -D $< > vm.dis
+	$(OBJCOPY) -O binary $< $@
+	$(OBJDUMP) -D $< > vm.list
 
 clean:
-	rm -f *.o *.elf *.bin *.dis
+	rm -f *.o *.elf *.bin *.list
 
