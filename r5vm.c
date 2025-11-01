@@ -125,10 +125,7 @@
 
 bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size)
 {
-    if (vm == NULL || mem_size == 0 || mem == NULL) {
-        return false;
-    }
-    if (!IS_POWER_OF_TWO(mem_size)) {
+    if (!vm || !mem_size || !mem || !IS_POWER_OF_TWO(mem_size)) {
         return false;
     }
     memset(vm, 0, sizeof(r5vm_t));
@@ -277,7 +274,6 @@ static bool r5vm_step(r5vm_t* vm)
     case (R5VM_OPCODE_SW):
         {
         const uint32_t addr = R[rs1] + IMM_S(inst);
-        const uint32_t val  = R[rs2];
 #ifdef R5VM_DEBUG
         if (addr > vm->mem_size - 4) {
             r5vm_error(vm, "Memory access out of bounds", vm->pc-4, inst);
@@ -286,22 +282,19 @@ static bool r5vm_step(r5vm_t* vm)
         }
 #endif
         switch (FUNCT3(inst)) {
-        case R5VM_S_F3_SB:
-            vm->mem[(addr + 0) & vm->mem_mask] = (val >> 0) & 0xFF;
-            break;
-        case R5VM_S_F3_SH:
-            vm->mem[(addr + 0) & vm->mem_mask] = (val >> 0) & 0xFF;
-            vm->mem[(addr + 1) & vm->mem_mask] = (val >> 8) & 0xFF;
-            break;
-        case R5VM_S_F3_SW:
-            vm->mem[(addr + 0) & vm->mem_mask] = (val >> 0)  & 0xFF;
-            vm->mem[(addr + 1) & vm->mem_mask] = (val >> 8)  & 0xFF;
-            vm->mem[(addr + 2) & vm->mem_mask] = (val >> 16) & 0xFF;
-            vm->mem[(addr + 3) & vm->mem_mask] = (val >> 24) & 0xFF;
-            break;
+        case R5VM_S_F3_SW: // 32-bit store (4 bytes)
+			vm->mem[(addr + 3) & vm->mem_mask] = (R[rs2] >> 24) & 0xFF;
+			vm->mem[(addr + 2) & vm->mem_mask] = (R[rs2] >> 16) & 0xFF;
+			/* fall through */
+		case R5VM_S_F3_SH: // 16-bit store (2 bytes)
+			vm->mem[(addr + 1) & vm->mem_mask] = (R[rs2] >> 8) & 0xFF;
+			/* fall through */
+		case R5VM_S_F3_SB: // 8-bit store (1 byte)
+			vm->mem[(addr + 0) & vm->mem_mask] = (R[rs2] >> 0) & 0xFF;
+			break;
 #ifdef R5VM_DEBUG
         default:
-            r5vm_error(vm, "Unknown Store funct3", vm->pc-4, inst);
+            r5vm_error(vm, "Illegal store width", vm->pc-4, inst);
             retcode = false;
 #endif
         }
