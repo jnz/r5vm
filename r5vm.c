@@ -164,7 +164,7 @@ bool r5vm_step(r5vm_t* vm)
         return false;
     }
 #endif
-
+    /* fetch next instruction */
     uint32_t inst =  vm->mem[(vm->pc + 0) & vm->mem_mask]
                   | (vm->mem[(vm->pc + 1) & vm->mem_mask] << 8)
                   | (vm->mem[(vm->pc + 2) & vm->mem_mask] << 16)
@@ -174,17 +174,6 @@ bool r5vm_step(r5vm_t* vm)
     const uint32_t rs1 = RS1(inst);
     const uint32_t rs2 = RS2(inst);
     uint32_t* R = vm->regs;
-
-#ifdef R5VM_DEBUG
-    uint8_t  debug_rd     = RD(inst);
-    uint8_t  debug_rs1    = RS1(inst);
-    uint8_t  debug_rs2    = RS2(inst);
-    uint16_t debug_funct3 = FUNCT3(inst);
-    uint16_t debug_funct7 = FUNCT7(inst);
-    int16_t  debug_imm_i  = IMM_I(inst);
-    int16_t  debug_imm_s  = IMM_S(inst);
-    uint32_t debug_imm_u  = IMM_U(inst);
-#endif
 
     switch (OPCODE(inst))
     {
