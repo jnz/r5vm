@@ -27,6 +27,6 @@ _start:
     call main
     mv a0, a0       # Return value from main()
     li a7, 0        # ECALL 0 = Exit
-    ecall
+    ecall           # exit host vm
 5:  j 5b
 
