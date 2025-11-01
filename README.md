@@ -1,6 +1,7 @@
 # R5VM — Minimal RISC-V RV32I Virtual Machine
 
 ![logo](r5vmlogo.jpg)
+
 *A compact and educational RISC-V emulator written in pure C.*
 
 ![C](https://img.shields.io/badge/language-C-blue)
@@ -119,7 +120,7 @@ You can override the error handler by defining your own `r5vm_error()`.
 
 ---
 
-## Linker Script (`r5vm.ld`)
+## Guest Linker Script (`r5vm.ld`)
 
 The guest program is linked into a single flat 64 KiB RAM image:
 
