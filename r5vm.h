@@ -67,10 +67,10 @@ typedef struct r5vm_s
         };
     };
 
-    uint32_t pc;       /**< Program counter (byte address) */
+    uint32_t pc;       /**< Program counter (byte address into "mem") */
     uint8_t* mem;      /**< Pointer to VM memory buffer */
     size_t   mem_size; /**< Total memory size in bytes (must be power of two) */
-    uint32_t mem_mask; /**< Address mask for wrapping memory accesses */
+    uint32_t mem_mask; /**< Address mask for sandbox memory accesses */
 } r5vm_t;
 
 // ---- Lifecycle -------------------------------------------------------------
@@ -87,7 +87,7 @@ typedef struct r5vm_s
  *                  code/data).
  * @return `true` if initialization succeeded, `false` on invalid parameters.
  */
-bool    r5vm_init(r5vm_t* vm, size_t mem_size, uint8_t* mem);
+bool r5vm_init(r5vm_t* vm, size_t mem_size, uint8_t* mem);
 
 /**
  * @brief Destroy a VM instance.
@@ -97,7 +97,7 @@ bool    r5vm_init(r5vm_t* vm, size_t mem_size, uint8_t* mem);
  *
  * @param vm Pointer to a VM instance.
  */
-void    r5vm_destroy(r5vm_t* vm);
+void r5vm_destroy(r5vm_t* vm);
 
 // ---- Execution control -----------------------------------------------------
 
@@ -108,18 +108,7 @@ void    r5vm_destroy(r5vm_t* vm);
  *
  * @param vm Pointer to a VM instance.
  */
-void    r5vm_reset(r5vm_t* vm);
-
-/**
- * @brief Execute a single instruction.
- *
- * Decodes and executes one RISC-V instruction at the current program counter.
- * Updates registers and memory accordingly.
- *
- * @param vm Pointer to an initialized VM.
- * @return `true` if execution should continue, `false` on halt or error.
- */
-bool    r5vm_step(r5vm_t* vm);
+void r5vm_reset(r5vm_t* vm);
 
 /**
  * @brief Run the VM for a given number of steps.
@@ -132,6 +121,17 @@ bool    r5vm_step(r5vm_t* vm);
  * @return Number of executed steps before halting.
  */
 unsigned r5vm_run(r5vm_t* vm, unsigned max_steps);
+
+/**
+ * @brief Execute a single instruction.
+ *
+ * Decodes and executes one RISC-V instruction at the current program counter.
+ * Updates registers and memory accordingly.
+ *
+ * @param vm Pointer to an initialized VM.
+ * @return `true` if execution should continue, `false` on halt or error.
+ */
+bool r5vm_step(r5vm_t* vm);
 
 // ---- Error -----------------------------------------------------------------
 
@@ -148,7 +148,7 @@ unsigned r5vm_run(r5vm_t* vm, unsigned max_steps);
  * @param pc     Program counter at the time of error.
  * @param instr  Faulting instruction word.
  */
-void    r5vm_error(r5vm_t* vm, const char* msg, uint32_t pc, uint32_t instr);
+void r5vm_error(r5vm_t* vm, const char* msg, uint32_t pc, uint32_t instr);
 
 #endif // R5VM_H
 
