@@ -125,10 +125,10 @@
 
 bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size)
 {
+    if (vm) { memset(vm, 0, sizeof(r5vm_t)); }
     if (!vm || !mem_size || !mem || !IS_POWER_OF_TWO(mem_size)) {
         return false;
     }
-    memset(vm, 0, sizeof(r5vm_t));
     vm->mem = mem;
     vm->mem_size = mem_size;
     vm->mem_mask = mem_size - 1; /* mem_size is power of two */
@@ -159,18 +159,18 @@ void r5vm_reset(r5vm_t* vm)
 static bool r5vm_step(r5vm_t* vm)
 {
     bool retcode = true;
-#ifdef R5VM_DEBUG
-    if (vm->pc > vm->mem_size - 4) {
-        r5vm_error(vm, "PC out of bounds", vm->pc, 0);
-        return false;
-    }
-#endif
     /* fetch next instruction: */
     uint32_t inst =  vm->mem[(vm->pc + 0) & vm->mem_mask]
                   | (vm->mem[(vm->pc + 1) & vm->mem_mask] << 8)
                   | (vm->mem[(vm->pc + 2) & vm->mem_mask] << 16)
                   | (vm->mem[(vm->pc + 3) & vm->mem_mask] << 24);
-    vm->pc += 4;
+#ifdef R5VM_DEBUG
+    if (vm->pc+4 > vm->mem_size - 4) {
+        r5vm_error(vm, "PC out of bounds", vm->pc, 0);
+        return false;
+    }
+#endif
+    vm->pc = (vm->pc + 4) & vm->mem_mask;
     /* decode/execute: */
     const uint32_t rd  = RD(inst);
     const uint32_t rs1 = RS1(inst);
@@ -303,12 +303,12 @@ static bool r5vm_step(r5vm_t* vm)
     /* _--------------------- Branch ---------------------------------_ */
     case (R5VM_OPCODE_BRANCH):
         switch (FUNCT3(inst)) {
-        case R5VM_B_F3_BEQ:  if (R[rs1] == R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
-        case R5VM_B_F3_BNE:  if (R[rs1] != R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
-        case R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
-        case R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
-        case R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
-        case R5VM_B_F3_BGE:  if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = vm->pc-4 + IMM_B(inst); break;
+        case R5VM_B_F3_BEQ:  if (R[rs1] == R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+        case R5VM_B_F3_BNE:  if (R[rs1] != R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+        case R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+        case R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+        case R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
+        case R5VM_B_F3_BGE:  if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
 #ifdef R5VM_DEBUG
         default:
             r5vm_error(vm, "Unknown Branch funct3", vm->pc-4, inst);
@@ -319,14 +319,14 @@ static bool r5vm_step(r5vm_t* vm)
     /* _--------------------- JAL ------------------------------------_ */
     case (R5VM_OPCODE_JAL):
         R[rd] = vm->pc;
-        vm->pc += IMM_J(inst) - 4;
+        vm->pc = (vm->pc + IMM_J(inst) - 4) & vm->mem_mask;
         break;
     /* _--------------------- JALR -----------------------------------_ */
     case (R5VM_OPCODE_JALR):
         if (FUNCT3(inst) == 0x0)
         {
             R[rd] = vm->pc;
-            vm->pc = (R[rs1] + IMM_I(inst)) & ~1U;
+            vm->pc = ((R[rs1] + IMM_I(inst)) & ~1U) & vm->mem_mask;
         }
 #ifdef R5VM_DEBUG
         else
