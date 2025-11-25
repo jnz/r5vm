@@ -1,4 +1,4 @@
-/*
+﻿/*
  * R5VM - Minimal RISC-V RV32I Virtual Machine
  *       _____
  *      | ____|
@@ -28,50 +28,160 @@
  * THE SOFTWARE.
  */
 
+/*
+   edi points to r5vm_t* vm
+*/
+
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <stdio.h> /* for putchar in ecall */
+#include <stdio.h>
+#include <stddef.h> /* offsetof(...) */
 
 #include "r5vm.h"
+#include "r5jit.h"
 
-// ---- Functions -------------------------------------------------------------
+// ---- Defines ---------------------------------------------------------------
 
-bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size, uint32_t code_size)
-{
-    if (vm) { memset(vm, 0, sizeof(r5vm_t)); }
-    if (!vm || !mem_size || !mem || !IS_POWER_OF_TWO(mem_size)) {
-        return false;
+#define OFF_PC    (offsetof(r5vm_t, pc)) /* Register offsete (bytes) in vm_t */
+#define OFF_X(n)  (offsetof(r5vm_t, regs) + (n)*4) /* Register offset in vm_t */
+
+// ---- x86 Emit --------------------------------------------------------------
+
+static void emit1(r5jitbuf_t* jit, uint8_t v) {
+    assert(jit->pos < jit->mem_size);
+    if (jit->pos < jit->mem_size) {
+        jit->mem[ jit->pos++ ] = v;
     }
-    vm->mem = mem;
-    vm->mem_size = mem_size;
-    vm->mem_mask = mem_size - 1; /* mem_size is power of two */
-    vm->code_size = code_size;
-
-    return true;
 }
 
-void r5vm_destroy(r5vm_t* vm)
+static void emit4(r5jitbuf_t* jit, uint32_t v) {
+    emit1(jit, (v >>  0) & 0xff );
+    emit1(jit, (v >>  8) & 0xff );
+    emit1(jit, (v >> 16) & 0xff );
+    emit1(jit, (v >> 24) & 0xff );
+}
+
+static uint8_t hex(uint8_t c) {
+    if ( c >= 'a' && c <= 'f' ) {
+        return 10 + c - 'a';
+    }
+    if ( c >= 'A' && c <= 'F' ) {
+        return 10 + c - 'A';
+    }
+    if ( c >= '0' && c <= '9' ) {
+        return c - '0';
+    }
+    assert(0);
+    return 0;
+}
+
+static void emit(r5jitbuf_t* jit, const char *string) {
+    int c1, c2;
+    while (true) {
+        c1 = string[0];
+        c2 = string[1];
+        emit1(jit, (hex(c1) << 4) | hex(c2));
+        if (string[2] == '\0')
+            break;
+        string += 3;
+    }
+}
+
+// ---- Op Codes --------------------------------------------------------------
+
+static void r5jit_emit_prolog(r5jitbuf_t* b, const r5vm_t* vm) {
+    emit1(b, 0x57); // push edi
+    emit1(b, 0xBF);
+    emit4(b, (uint32_t)vm);
+}
+
+static void r5jit_emit_epilog(r5jitbuf_t* b) {
+    emit1(b, 0x5F); // pop edi
+    emit1(b, 0xC3); // return
+}
+
+static void r5jit_exec(r5vm_t* vm, r5jitbuf_t* jit)
 {
     (void)vm;
+    r5jitfn_t func = (r5jitfn_t)jit->mem;
+    func();
 }
 
-void r5vm_reset(r5vm_t* vm)
-{
-    memset(vm->regs, 0, sizeof vm->regs);
-    vm->pc = 0;
+static void emit_add(r5jitbuf_t* b, int rd, int reg1, int reg2) {
+    assert(OFF_X(reg1) <= 0x7f);
+    assert(OFF_X(reg2) <= 0x7f);
+    assert(OFF_X(rd) <= 0x7f);
+    assert(rd > 0);
+
+    // mov eax, [edi + disp8]
+    // Byte encoding: 8B 47 xx (8-bit displacement from edi)
+    // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
+    emit(b, "8B 47");
+    emit1(b, (uint8_t)OFF_X(reg1 & 0x7f)); // register between 0 and 31
+
+    // add eax, [edi + disp8]
+    emit(b, "03 47");
+    emit1(b, (uint8_t)OFF_X(reg2 & 0x7f));
+
+    emit(b, "89 47");   // mov [edi + disp8], eax
+    emit1(b, (uint8_t)OFF_X(rd & 0x7f));
 }
 
-/**
- * @brief Execute a single instruction.
- *
- * Decodes and executes one RISC-V instruction at the current program counter.
- * Updates registers and memory accordingly.
- *
- * @param vm Pointer to an initialized VM.
- * @return `true` if execution should continue, `false` on halt or error.
- */
-static bool r5vm_step(r5vm_t* vm)
+static void emit_addi(r5jitbuf_t* b, int rd, int reg1, int imm) {
+    assert(OFF_X(reg1) <= 0x7f);
+    assert(OFF_X(rd) <= 0x7f);
+    assert(rd > 0);
+
+    // mov eax, [edi + disp8]
+    // Byte encoding: 8B 47 xx (8-bit displacement from edi)
+    // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
+    emit(b, "8B 47");
+    emit1(b, (uint8_t)OFF_X(reg1) & 0x7f); // register between 0 and 31
+
+    // add eax, imm32
+    emit1(b, 0x05);
+    emit4(b, imm);
+
+    emit(b, "89 47");   // mov [edi + disp8], eax
+    emit1(b, (uint8_t)OFF_X(rd));
+}
+
+static void emit_sub(r5jitbuf_t* b, int rd, int reg1, int reg2) {
+    // mov eax, [edi + disp8]
+    // Byte encoding: 8B 47 xx (8-bit displacement from edi)
+    // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
+    emit(b, "8B 47");
+    emit1(b, OFF_X(reg1) & 0x7f); // register between 0 and 31
+
+    emit(b, "2B 47"); // sub eax, [edi + disp8]
+    emit1(b, (uint8_t)OFF_X(reg2 & 0x7f));
+
+    emit(b, "89 47");   // mov [edi + disp8], eax
+    emit1(b, (uint8_t)OFF_X(rd & 0x7f));
+}
+
+static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b, int reg1, int reg2, int immb) {
+
+    // R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
+    int target_pc = (vm->pc-4 + immb) & vm->mem_mask;
+    int target_index = target_pc /* >> 2 */;
+
+    emit(b, "8B 47"); emit1(b, OFF_X(reg1) & 0x7f);// mov eax, [edi + OFF_X(rs1)] (mit disp8)
+    emit(b, "8B 5F"); emit1(b, OFF_X(reg2) & 0x7f); // mov ebx, [edi+off]
+    emit(b, "39 D8"); // cmp eax, ebx
+    emit(b, "7D 06"); // jge (conditional jump over next 6 bytes)
+    emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_index]
+
+    printf("Jump target addr: [0x%08x] = 0x%08x)\n",
+        (uint32_t)(b->instruction_pointers + target_index),
+        b->instruction_pointers[target_index]);
+    emit4(b, (uint32_t)(b->instruction_pointers + target_index));
+}
+
+// ---- Interpreter -----------------------------------------------------------
+
+static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
 {
     bool retcode = true;
     /* fetch next instruction: */
@@ -79,12 +189,7 @@ static bool r5vm_step(r5vm_t* vm)
                   | (vm->mem[(vm->pc + 1) & vm->mem_mask] << 8)
                   | (vm->mem[(vm->pc + 2) & vm->mem_mask] << 16)
                   | (vm->mem[(vm->pc + 3) & vm->mem_mask] << 24);
-#ifdef R5VM_DEBUG
-    if (vm->pc+4 > vm->mem_size - 4) {
-        r5vm_error(vm, "PC out of bounds", vm->pc, 0);
-        return false;
-    }
-#endif
+
     vm->pc = (vm->pc + 4) & vm->mem_mask;
     /* decode/execute: */
     const uint32_t rd  = RD(inst);
@@ -97,9 +202,10 @@ static bool r5vm_step(r5vm_t* vm)
     case (R5VM_OPCODE_R_TYPE):
         switch (FUNCT3(inst)) {
         case R5VM_R_F3_ADD_SUB:
-            R[rd] = (FUNCT7(inst) == R5VM_R_F7_SUB)
-                        ? R[rs1] - R[rs2]
-                        : R[rs1] + R[rs2];
+            if (FUNCT7(inst) == R5VM_R_F7_SUB)
+                emit_sub(jit, rd, rs1, rs2); // R[rd] = R[rs1] - R[rs2]
+            else
+                emit_add(jit, rd, rs1, rs2); // R[rd] = R[rs1] + R[rs2]
             break;
         case R5VM_R_F3_XOR:  R[rd] = R[rs1] ^ R[rs2]; break;
         case R5VM_R_F3_OR:   R[rd] = R[rs1] | R[rs2]; break;
@@ -123,7 +229,7 @@ static bool r5vm_step(r5vm_t* vm)
     /* _--------------------- I-Type instuctions ---------------------_ */
     case (R5VM_OPCODE_I_TYPE):
         switch (FUNCT3(inst)) {
-        case R5VM_I_F3_ADDI:  R[rd] = R[rs1] + IMM_I(inst); break;
+        case R5VM_I_F3_ADDI:  emit_addi(jit, rd, rs1, rs2); break; /* R[rd] = R[rs1] + IMM_I(inst); */ 
         case R5VM_I_F3_XORI:  R[rd] = R[rs1] ^ IMM_I(inst); break;
         case R5VM_I_F3_ORI:   R[rd] = R[rs1] | IMM_I(inst); break;
         case R5VM_I_F3_ANDI:  R[rd] = R[rs1] & IMM_I(inst); break;
@@ -222,7 +328,7 @@ static bool r5vm_step(r5vm_t* vm)
         case R5VM_B_F3_BNE:  if (R[rs1] != R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
         case R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
         case R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
-        case R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
+        case R5VM_B_F3_BLT:  emit_blt(vm, jit, rs1, rs2, IMM_B(inst)); break; // if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
         case R5VM_B_F3_BGE:  if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
 #ifdef R5VM_DEBUG
         default:
@@ -257,11 +363,12 @@ static bool r5vm_step(r5vm_t* vm)
         uint32_t syscall_id = vm->a7;
         switch (syscall_id) {
         case 0:
-            retcode = false;
+            r5jit_emit_epilog(jit);
+            // retcode = false;
             break;
         case 1:
-            putchar(vm->a0 & 0xff);
-            fflush(stdout);
+            // putchar(vm->a0 & 0xff);
+            // fflush(stdout);
             break;
         default:
             r5vm_error(vm, "Unknown ECALL", vm->pc-4, syscall_id);
@@ -282,14 +389,71 @@ static bool r5vm_step(r5vm_t* vm)
     return retcode;
 }
 
-unsigned r5vm_run(r5vm_t* vm, unsigned max_steps)
+// ---- JIT-Entry -------------------------------------------------------------
+
+void r5jit_dump(const r5jitbuf_t* jit)
 {
-    unsigned i;
-    for (i = 0; i < max_steps || max_steps == 0; i++) {
-        if (!r5vm_step(vm)) {
+    // objdump -D -b binary -mi386 -M intel jit.bin
+    FILE* f = fopen("jit.bin", "wb");
+    fwrite(jit->mem, 1, jit->pos, f);
+    fclose(f);
+}
+
+bool r5jit_compile(r5vm_t* vm, r5jitbuf_t* jit)
+{
+    bool success = true;
+
+    r5jit_emit_prolog(jit, vm);
+    for (uint32_t pc = 0; pc < vm->code_size; pc+=4) {
+        assert(pc < vm->code_size);
+        jit->instruction_pointers[pc] = (unsigned) &jit->mem[jit->pos];
+        printf("MAP: r5 pc 0x%x -> [0x%08x] = 0x%08x))\n", pc,
+            (unsigned)&jit->instruction_pointers[pc],
+            jit->instruction_pointers[pc]);
+
+        vm->pc = pc;
+        if (r5jit_step(vm, jit) == false) {
+            success = false;
+            jit->error = true;
             break;
         }
     }
-    return i;
+
+    return success;
+}
+
+bool r5jit_x86(r5vm_t* vm)
+{
+    bool success = false;
+    uint8_t* mem = NULL;
+    unsigned* instruction_pointers = NULL;
+    size_t mem_size = vm->mem_size;
+
+    mem = r5jit_get_rwx_mem(mem_size);
+    if (!mem) {
+        goto cleanup;
+    }
+
+    instruction_pointers = malloc(vm->code_size * 4);
+    if (!instruction_pointers) {
+        goto cleanup;
+    }
+
+    r5jitbuf_t jit = { .mem = mem,
+                       .mem_size = mem_size,
+                       .pos = 0,
+                       .instruction_pointers = instruction_pointers,
+                       .error = false, };
+
+    if (r5jit_compile(vm, &jit)) {
+        r5jit_dump(&jit);
+        r5jit_exec(vm, &jit);
+        success = true;
+    }
+
+cleanup:
+    r5jit_free_rwx_mem(mem);
+    free(instruction_pointers);
+    return success;
 }
 

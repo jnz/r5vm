@@ -33,6 +33,7 @@
 #include <string.h> // for strcmp
 #include <ctype.h> // for isspace, tolower
 #include <inttypes.h> // for PRIu32
+#include <assert.h>
 
 #include "r5vm.h"
 
@@ -61,13 +62,13 @@ static size_t parse_mem_arg(const char* s)
 // -------------------------------------------------------------
 
 static bool load_file(const char* path, uint8_t** out_mem, size_t*
-                      out_mem_size, size_t override_mem)
+                      out_mem_size, size_t override_mem, size_t* code_size)
 {
     FILE* f = fopen(path, "rb");
     if (!f) { perror("fopen"); return false; }
 
     fseek(f, 0, SEEK_END);
-    long fsize = ftell(f);
+    const long fsize = ftell(f);
     rewind(f);
     if (fsize <= 0) {
         fclose(f);
@@ -122,6 +123,7 @@ static bool load_file(const char* path, uint8_t** out_mem, size_t*
 
     *out_mem = mem;
     *out_mem_size = total_mem;
+    *code_size = fsize;
     return true;
 }
 
@@ -170,22 +172,69 @@ int main(int argc, char** argv)
 
     uint8_t* mem = NULL;
     size_t mem_size = 0;
-    if (!load_file(argv[1], &mem, &mem_size, override_mem)) {
+    uint32_t code_size = 0;
+    if (!load_file(argv[1], &mem, &mem_size, override_mem, &code_size)) {
         return 1;
     }
 
     r5vm_t vm;
-    if (!r5vm_init(&vm, mem, (uint32_t)mem_size)) {
+    if (!r5vm_init(&vm, mem, (uint32_t)mem_size, code_size)) {
         fprintf(stderr, "error: r5vm_init failed\n");
         free(mem);
         return 1;
     }
-
     r5vm_reset(&vm);
+
+    vm.code_size = 0;
+    vm.mem[vm.code_size++] = 0x93; // addi x1, x0, 0
+    vm.mem[vm.code_size++] = 0x00;
+    vm.mem[vm.code_size++] = 0x00;
+    vm.mem[vm.code_size++] = 0x00;
+    vm.mem[vm.code_size++] = 0x13; // addi x2, x0, 5
+    vm.mem[vm.code_size++] = 0x01;
+    vm.mem[vm.code_size++] = 0x50;
+    vm.mem[vm.code_size++] = 0x00;
+    vm.mem[vm.code_size++] = 0x93; // addi x1, x1, 1
+    vm.mem[vm.code_size++] = 0x80;
+    vm.mem[vm.code_size++] = 0x10;
+    vm.mem[vm.code_size++] = 0x00;
+    vm.mem[vm.code_size++] = 0xe3; // blt x1, x2, loop
+    vm.mem[vm.code_size++] = 0xce;
+    vm.mem[vm.code_size++] = 0x20;
+    vm.mem[vm.code_size++] = 0xFE;
+    vm.mem[vm.code_size++] = 0x73; // ebreak
+    vm.mem[vm.code_size++] = 0x00;
+    vm.mem[vm.code_size++] = 0x10;
+    vm.mem[vm.code_size++] = 0x00;
+
+    // clone vm
+    uint8_t* jitmem = malloc(vm.mem_size);
+    assert(jitmem);
+    memcpy(jitmem, vm.mem, vm.mem_size);
+
+    // Run in interpreter
     r5vm_run(&vm, 0);
 
+    r5vm_t vmjit;
+    r5vm_init(&vmjit, jitmem, vm.mem_size, vm.code_size);
+    r5vm_reset(&vmjit);
+
+    // Run in JIT
+    r5jit_x86(&vmjit);
+
+    // compare result
+    for (int i = 0; i < 32; i++) {
+        if (vm.regs[i] != vmjit.regs[i])
+        {
+            printf("Warning register %i mismatch: %i vs. %i\n", i, vm.regs[i], vmjit.regs[i]);
+        }
+    }
+
+    // cleanup
     r5vm_destroy(&vm);
+    r5vm_destroy(&vmjit);
     free(mem);
+    free(jitmem);
 
     return 0;
 }

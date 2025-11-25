@@ -21,9 +21,12 @@
   <ItemGroup>
     <ClCompile Include="..\..\main.c" />
     <ClCompile Include="..\..\r5vm.c" />
+    <ClCompile Include="..\..\src\r5jit_windows.c" />
+    <ClCompile Include="..\..\src\r5jit_x86_64.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\r5vm.h" />
+    <ClInclude Include="..\..\src\r5jit.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
