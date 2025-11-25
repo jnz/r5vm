@@ -109,35 +109,27 @@ static void r5jit_exec(r5vm_t* vm, r5jitbuf_t* jit)
 }
 
 static void emit_add(r5jitbuf_t* b, int rd, int reg1, int reg2) {
-    assert(OFF_X(reg1) <= 0x7f);
-    assert(OFF_X(reg2) <= 0x7f);
-    assert(OFF_X(rd) <= 0x7f);
     assert(rd > 0);
 
     // mov eax, [edi + disp8]
     // Byte encoding: 8B 47 xx (8-bit displacement from edi)
     // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
     emit(b, "8B 47");
-    emit1(b, (uint8_t)OFF_X(reg1 & 0x7f)); // register between 0 and 31
-
-    // add eax, [edi + disp8]
-    emit(b, "03 47");
-    emit1(b, (uint8_t)OFF_X(reg2 & 0x7f));
-
-    emit(b, "89 47");   // mov [edi + disp8], eax
-    emit1(b, (uint8_t)OFF_X(rd & 0x7f));
+    emit1(b, (uint8_t)OFF_X(reg1)); // register between 0 and 31
+    emit(b, "03 47");               // add eax, [edi + disp8]
+    emit1(b, (uint8_t)OFF_X(reg2));
+    emit(b, "89 47");               // mov [edi + disp8], eax
+    emit1(b, (uint8_t)OFF_X(rd));
 }
 
 static void emit_addi(r5jitbuf_t* b, int rd, int reg1, int imm) {
-    assert(OFF_X(reg1) <= 0x7f);
-    assert(OFF_X(rd) <= 0x7f);
     assert(rd > 0);
 
     // mov eax, [edi + disp8]
     // Byte encoding: 8B 47 xx (8-bit displacement from edi)
     // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
     emit(b, "8B 47");
-    emit1(b, (uint8_t)OFF_X(reg1) & 0x7f); // register between 0 and 31
+    emit1(b, (uint8_t)OFF_X(reg1)); // register between 0 and 31
 
     // add eax, imm32
     emit1(b, 0x05);
@@ -152,31 +144,47 @@ static void emit_sub(r5jitbuf_t* b, int rd, int reg1, int reg2) {
     // Byte encoding: 8B 47 xx (8-bit displacement from edi)
     // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
     emit(b, "8B 47");
-    emit1(b, OFF_X(reg1) & 0x7f); // register between 0 and 31
+    emit1(b, OFF_X(reg1)); // register between 0 and 31
 
     emit(b, "2B 47"); // sub eax, [edi + disp8]
-    emit1(b, (uint8_t)OFF_X(reg2 & 0x7f));
+    emit1(b, (uint8_t)OFF_X(reg2));
 
     emit(b, "89 47");   // mov [edi + disp8], eax
-    emit1(b, (uint8_t)OFF_X(rd & 0x7f));
+    emit1(b, (uint8_t)OFF_X(rd));
 }
 
-static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b, int reg1, int reg2, int immb) {
-
+static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
+                     int reg1, int reg2, int immb)
+{
     // R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
     int target_pc = (vm->pc-4 + immb) & vm->mem_mask;
-    int target_index = target_pc /* >> 2 */;
 
-    emit(b, "8B 47"); emit1(b, OFF_X(reg1) & 0x7f);// mov eax, [edi + OFF_X(rs1)] (mit disp8)
-    emit(b, "8B 5F"); emit1(b, OFF_X(reg2) & 0x7f); // mov ebx, [edi+off]
+    emit(b, "8B 47"); emit1(b, OFF_X(reg1)); // eax = rs1 | mov eax, [edi + OFF_X(rs1)] (mit disp8)
+    emit(b, "8B 5F"); emit1(b, OFF_X(reg2)); // ebx = rs2 | mov ebx, [edi+off]
     emit(b, "39 D8"); // cmp eax, ebx
     emit(b, "7D 06"); // jge (conditional jump over next 6 bytes)
     emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_index]
+    printf("BLT Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
+        target_pc, (void*)(b->instruction_pointers + target_pc),
+        b->instruction_pointers[target_pc]);
+    emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only :-(
+}
 
-    printf("Jump target addr: [0x%08x] = 0x%08x)\n",
-        (uint32_t)(b->instruction_pointers + target_index),
-        b->instruction_pointers[target_index]);
-    emit4(b, (uint32_t)(b->instruction_pointers + target_index)); // x86-32 bit only :-(
+static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
+                     int reg1, int reg2, int immb)
+{
+    // R5VM_B_F3_BGE: if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
+    int target_pc = (vm->pc - 4 + immb) & vm->mem_mask;
+
+    emit(b, "8B 47"); emit1(b, OFF_X(reg1)); // eax = rs1
+    emit(b, "8B 5F"); emit1(b, OFF_X(reg2)); // ebx = rs2
+    emit(b, "39 D8"); // cmp eax, ebx
+    emit(b, "7C 06"); // jl +6  (if eax < ebx, skip)
+    emit(b, "FF 25"); // jmp [instructionPointers[target_index]]
+    printf("BGE Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
+        target_pc, (void*)(b->instruction_pointers + target_pc),
+        b->instruction_pointers[target_pc]);
+    emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
 }
 
 // ---- Interpreter -----------------------------------------------------------
@@ -192,9 +200,9 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
 
     vm->pc = (vm->pc + 4) & vm->mem_mask;
     /* decode/execute: */
-    const uint32_t rd  = RD(inst);
-    const uint32_t rs1 = RS1(inst);
-    const uint32_t rs2 = RS2(inst);
+    const uint32_t rd  = RD(inst) & 0x7f;
+    const uint32_t rs1 = RS1(inst) & 0x7f;
+    const uint32_t rs2 = RS2(inst) & 0x7f;
     uint32_t* R = vm->regs;
     switch (OPCODE(inst))
     {
@@ -229,7 +237,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
     /* _--------------------- I-Type instuctions ---------------------_ */
     case (R5VM_OPCODE_I_TYPE):
         switch (FUNCT3(inst)) {
-        case R5VM_I_F3_ADDI:  emit_addi(jit, rd, rs1, rs2); break; /* R[rd] = R[rs1] + IMM_I(inst); */ 
+        case R5VM_I_F3_ADDI:  emit_addi(jit, rd, rs1, IMM_I(inst)); break; /* R[rd] = R[rs1] + IMM_I(inst); */ 
         case R5VM_I_F3_XORI:  R[rd] = R[rs1] ^ IMM_I(inst); break;
         case R5VM_I_F3_ORI:   R[rd] = R[rs1] | IMM_I(inst); break;
         case R5VM_I_F3_ANDI:  R[rd] = R[rs1] & IMM_I(inst); break;
@@ -329,7 +337,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
         case R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
         case R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
         case R5VM_B_F3_BLT:  emit_blt(vm, jit, rs1, rs2, IMM_B(inst)); break; // if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
-        case R5VM_B_F3_BGE:  if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
+        case R5VM_B_F3_BGE:  emit_bge(vm, jit, rs1, rs2, IMM_B(inst)); break; // if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
 #ifdef R5VM_DEBUG
         default:
             r5vm_error(vm, "Unknown Branch funct3", vm->pc-4, inst);
@@ -407,9 +415,14 @@ bool r5jit_compile(r5vm_t* vm, r5jitbuf_t* jit)
     for (uint32_t pc = 0; pc < vm->code_size; pc+=4) {
         assert(pc < vm->code_size);
         jit->instruction_pointers[pc] = (unsigned) &jit->mem[jit->pos];
-        printf("MAP: r5 pc 0x%x -> [%p] = 0x%08x))\n", pc,
+        printf("MAP: r5 pc 0x%x -> [%p] = 0x%08x)) -- ", pc,
             (void*)&jit->instruction_pointers[pc],
             jit->instruction_pointers[pc]);
+        printf("%02x ", (vm->mem[vm->pc + 3]) & 0xff);
+        printf("%02x ", (vm->mem[vm->pc + 2]) & 0xff);
+        printf("%02x ", (vm->mem[vm->pc + 1]) & 0xff);
+        printf("%02x ", (vm->mem[vm->pc + 0]) & 0xff);
+        printf("\n");
 
         vm->pc = pc;
         if (r5jit_step(vm, jit) == false) {
