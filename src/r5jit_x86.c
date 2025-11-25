@@ -176,7 +176,7 @@ static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b, int reg1, int reg2, int im
     printf("Jump target addr: [0x%08x] = 0x%08x)\n",
         (uint32_t)(b->instruction_pointers + target_index),
         b->instruction_pointers[target_index]);
-    emit4(b, (uint32_t)(b->instruction_pointers + target_index));
+    emit4(b, (uint32_t)(b->instruction_pointers + target_index)); // x86-32 bit only :-(
 }
 
 // ---- Interpreter -----------------------------------------------------------
@@ -407,8 +407,8 @@ bool r5jit_compile(r5vm_t* vm, r5jitbuf_t* jit)
     for (uint32_t pc = 0; pc < vm->code_size; pc+=4) {
         assert(pc < vm->code_size);
         jit->instruction_pointers[pc] = (unsigned) &jit->mem[jit->pos];
-        printf("MAP: r5 pc 0x%x -> [0x%08x] = 0x%08x))\n", pc,
-            (unsigned)&jit->instruction_pointers[pc],
+        printf("MAP: r5 pc 0x%x -> [%p] = 0x%08x))\n", pc,
+            (void*)&jit->instruction_pointers[pc],
             jit->instruction_pointers[pc]);
 
         vm->pc = pc;

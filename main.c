@@ -204,7 +204,7 @@ int main(int argc, char** argv)
     for (int i = 0; i < 32; i++) {
         if (vm.regs[i] != vmjit.regs[i])
         {
-            printf("Warning register %i mismatch: %i vs. %i\n", i, vm.regs[i], vmjit.regs[i]);
+            printf("Error register %i mismatch: %i vs. %i\n", i, vm.regs[i], vmjit.regs[i]);
         }
     }
 
