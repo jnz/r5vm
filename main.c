@@ -185,28 +185,6 @@ int main(int argc, char** argv)
     }
     r5vm_reset(&vm);
 
-    vm.code_size = 0;
-    vm.mem[vm.code_size++] = 0x93; // addi x1, x0, 0
-    vm.mem[vm.code_size++] = 0x00;
-    vm.mem[vm.code_size++] = 0x00;
-    vm.mem[vm.code_size++] = 0x00;
-    vm.mem[vm.code_size++] = 0x13; // addi x2, x0, 5
-    vm.mem[vm.code_size++] = 0x01;
-    vm.mem[vm.code_size++] = 0x50;
-    vm.mem[vm.code_size++] = 0x00;
-    vm.mem[vm.code_size++] = 0x93; // addi x1, x1, 1
-    vm.mem[vm.code_size++] = 0x80;
-    vm.mem[vm.code_size++] = 0x10;
-    vm.mem[vm.code_size++] = 0x00;
-    vm.mem[vm.code_size++] = 0xe3; // blt x1, x2, loop
-    vm.mem[vm.code_size++] = 0xce;
-    vm.mem[vm.code_size++] = 0x20;
-    vm.mem[vm.code_size++] = 0xFE;
-    vm.mem[vm.code_size++] = 0x73; // ebreak
-    vm.mem[vm.code_size++] = 0x00;
-    vm.mem[vm.code_size++] = 0x10;
-    vm.mem[vm.code_size++] = 0x00;
-
     // clone vm
     uint8_t* jitmem = malloc(vm.mem_size);
     assert(jitmem);
