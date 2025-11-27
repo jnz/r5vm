@@ -80,6 +80,32 @@
 /** @brief Base RISC-V ISA implemented by this VM. */
 #define R5VM_BASE_ISA    "RV32I"
 
+/** @brief .r5m Header Identifier (r5vm in little endian) */
+#define R5VM_MAGIC       0x6d763572u
+
+// ---- .r5m header structure -------------------------------------------------
+
+#pragma pack(push, 1)
+typedef struct {
+
+    union {
+        uint32_t magic;
+        char magic_str[4];
+    };
+    uint16_t version;
+    uint16_t flags;
+    uint32_t entry;
+    uint32_t load_addr;
+    uint32_t code_offset;
+    uint32_t code_size;
+    uint32_t data_offset;
+    uint32_t data_size;
+    uint32_t bss_size;
+    uint32_t total_size;
+    uint8_t  reserved[24];
+} r5vm_header_t;
+#pragma pack(pop)
+
 // ---- VM data structure -----------------------------------------------------
 
 /**
@@ -130,39 +156,17 @@ typedef struct r5vm_s
         };
     };
 
-    uint32_t pc;        /**< Program counter (byte offset into "mem") */
-    uint8_t* mem;       /**< Pointer to VM memory buffer */
-    uint32_t mem_size;  /**< Total memory size in bytes (must be power of 2) */
-    uint32_t mem_mask;  /**< Address mask for sandbox memory accesses */
-    uint32_t code_size; /**< Bytes of instructions. */
+    uint32_t pc;          /**< Program counter (byte offset into "mem") */
+    uint8_t* mem;         /**< Pointer to VM memory buffer */
+    uint32_t mem_size;    /**< Total memory size in bytes (must be power of 2) */
+    uint32_t mem_mask;    /**< Address mask for sandbox memory accesses */
+    uint32_t code_size;   /**< Bytes of instructions. */
+    uint32_t data_offset; /**< Offset in mem for .data section */
+    uint32_t data_size;   /**< Bytes in .data section */
+    uint32_t bss_offset;  /**< Offset in mem for .bss section */
+    uint32_t bss_size;    /**< Bytes in .bss section */
+    uint32_t entry;       /**< Entry point (read-only) */
 } r5vm_t;
-
-// ---- Lifecycle -------------------------------------------------------------
-
-/**
- * @brief Initialize a VM instance.
- *
- * Clears internal state and binds the VM to a given memory region.
- * The memory size must be a power of two for address wrapping to work.
- *
- * @param vm        Pointer to an uninitialized VM instance.
- * @param mem       Pointer to allocated memory buffer (must be pre-loaded with
- *                  code/data).
- * @param mem_size  Size of mem buffer in bytes (power of two).
- * @param code_size Bytes of instructions.
- * @return `true` if initialization succeeded, `false` on invalid parameters.
- */
-bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size, uint32_t code_size);
-
-/**
- * @brief Destroy a VM instance.
- *
- * Clears all internal fields of the VM structure.
- * Does **not** free the memory buffer. Ownership remains with the caller.
- *
- * @param vm Pointer to a VM instance.
- */
-void r5vm_destroy(r5vm_t* vm);
 
 // ---- Execution control -----------------------------------------------------
 
@@ -206,7 +210,6 @@ void r5vm_error(r5vm_t* vm, const char* msg, uint32_t pc, uint32_t instr);
 
 // ---- Macros ---------------------------------------------------------------
 
-#define IS_POWER_OF_TWO(n)  ((n) != 0 && ((n) & ((n) - 1)) == 0)
 /** Interprete as signed integer with sign extension */
 #define SIGN_EXT32(x,bits)  ((int32_t)((x) << (32 - (bits))) >> (32 - (bits)))
 

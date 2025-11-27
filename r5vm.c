@@ -37,29 +37,10 @@
 
 // ---- Functions -------------------------------------------------------------
 
-bool r5vm_init(r5vm_t* vm, uint8_t* mem, uint32_t mem_size, uint32_t code_size)
-{
-    if (vm) { memset(vm, 0, sizeof(r5vm_t)); }
-    if (!vm || !mem_size || !mem || !IS_POWER_OF_TWO(mem_size)) {
-        return false;
-    }
-    vm->mem = mem;
-    vm->mem_size = mem_size;
-    vm->mem_mask = mem_size - 1; /* mem_size is power of two */
-    vm->code_size = code_size;
-
-    return true;
-}
-
-void r5vm_destroy(r5vm_t* vm)
-{
-    (void)vm;
-}
-
 void r5vm_reset(r5vm_t* vm)
 {
     memset(vm->regs, 0, sizeof vm->regs);
-    vm->pc = 0;
+    vm->pc = vm->entry;
 }
 
 /**
