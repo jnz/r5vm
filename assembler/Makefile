@@ -1,18 +1,22 @@
 CROSS = riscv64-unknown-elf
 ARCH  = -march=rv32i -mabi=ilp32
 
-all: mini.elf mini.bin
+all: firmware.elf firmware.r5m
 
-mini.elf: mini.S
-	$(CROSS)-gcc $(ARCH) -nostdlib -nostartfiles -Wl,--no-relax -o $@ $<
+firmware.elf: firmware.S
+	$(CROSS)-gcc $(ARCH) -nostdlib -nostartfiles -Wl,--no-relax -T link.ld -o $@ $<
 
-mini.bin: mini.elf
+firmware.bin: firmware.elf
 	$(CROSS)-objcopy -O binary $< $@
 
-dump: mini.elf mini.bin
-	$(CROSS)-objdump -d mini.elf
-	xxd -c 4 mini.bin
+firmware.r5m: firmware.elf
+	python ../r5asm/r5asm.py --verbose firmware.elf firmware.r5m
+
+dump: firmware.elf firmware.bin
+	xxd -c 4 firmware.bin
+	echo ""
+	$(CROSS)-objdump -d firmware.elf
 
 clean:
-	rm -f mini.elf mini.bin
+	rm -f firmware.r5m firmware.elf firmware.bin
 
