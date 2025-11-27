@@ -126,7 +126,7 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
         return -6;
     }
 
-	// Load CODE
+	// Load .CODE
 	if (fseek(f, h.code_offset, SEEK_SET) != 0) {
         fprintf(stderr, "Could not read .code section");
 		free(mem);
@@ -142,7 +142,7 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
 		return -7;
 	}
 
-	// Load DATA
+	// Load .DATA
 	if (h.data_size > 0) {
 		if (fseek(f, h.data_offset, SEEK_SET) != 0) {
         fprintf(stderr, "Could not read .data section");
@@ -168,9 +168,11 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
     vm->mem_size  = mem_size;
     vm->mem_mask  = mem_size - 1;
 
-    vm->data_offset = h.code_size;
+    vm->code_offset = h.load_addr;
+    vm->code_size   = h.code_size;
+    vm->data_offset = h.load_addr + h.code_size;
     vm->data_size   = h.data_size;
-    vm->bss_offset  = h.code_size + h.data_size;
+    vm->bss_offset  = vm->data_offset + h.data_size;
     vm->bss_size    = h.bss_size;
 
     vm->entry = h.entry & vm->mem_mask;

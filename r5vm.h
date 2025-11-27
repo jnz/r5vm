@@ -160,6 +160,7 @@ typedef struct r5vm_s
     uint8_t* mem;         /**< Pointer to VM memory buffer */
     uint32_t mem_size;    /**< Total memory size in bytes (must be power of 2) */
     uint32_t mem_mask;    /**< Address mask for sandbox memory accesses */
+    uint32_t code_offset; /**< Offset in mem for .code section */
     uint32_t code_size;   /**< Bytes of instructions. */
     uint32_t data_offset; /**< Offset in mem for .data section */
     uint32_t data_size;   /**< Bytes in .data section */

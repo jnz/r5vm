@@ -439,10 +439,10 @@ bool r5jit_compile(r5vm_t* vm, r5jitbuf_t* jit)
     bool success = true;
 
     r5jit_emit_prolog(jit, vm);
-    for (uint32_t pc = 0; pc < vm->code_size; pc+=4) {
+    for (uint32_t pc = vm->code_offset; pc < vm->code_offset + vm->code_size; pc+=4) {
         assert(pc < vm->code_size);
         jit->instruction_pointers[pc] = (unsigned) &jit->mem[jit->pos];
-        printf("MAP: r5 pc 0x%x -> [%p] = 0x%08x)) -- ", pc,
+        printf("MAP: r5 pc 0x%06x -> [%p] = 0x%08x)) -- ", pc,
             (void*)&jit->instruction_pointers[pc],
             jit->instruction_pointers[pc]);
         printf("%02x ", (vm->mem[vm->pc + 3]) & 0xff);
