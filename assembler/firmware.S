@@ -60,9 +60,30 @@ loop_bge:
     addi x24, x0, 2
     sra  x25, x23, x24       # expected 0xFFFFFFFC  (sign-extended)
 
+    # ---- Test 11: SLT (signed) ----------
+    addi x13, x0, -5         # x13 = -5
+    addi x14, x0, 10         # x14 = 10
+    slt  x15, x13, x14       # expected: x15 = 1 (x13 < x14)
+
+    addi x16, x0, 20 # x16 = 20
+    addi x17, x0, -1 # x17 = -1
+    slt  x18, x16, x17     # expected: x18 = 0
+
+    # ---- Test 12: SLTU (unsigned) -------
+    # x19 = 0xFFFFFFFF (unsigned)
+    # x20 = 1
+    # x21 = (x19 < x20) => 0   (unsigned!)
+    addi x19, x0, -1        # -1 as 0xFFFFFFFF
+    addi x20, x0, 1
+    sltu x21, x19, x20      # expected: x21 = 0
+
+    addi x22, x0, 0 # x22 = 0
+    addi x23, x0, 1 # x23 = 1
+    sltu x24, x22, x23      # expected: x24 = 1
+
     ebreak
 
-    # ----------------- Data ------------
+    # ----------------- Data -------------
     .section .data
 mydata:
     .word 0x11223344
