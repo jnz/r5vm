@@ -221,7 +221,6 @@ static void emit_auipc(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
 {
     // R[rd] = vm->pc-4 + IMM_U(inst);
     uint32_t target_pc = (vm->pc-4 + immu) & vm->mem_mask;
-
     emit(b, "B8");    // mov eax, imm32
 	emit4(b, target_pc);
     emit(b, "89 47");   // mov [edi + disp8], eax
@@ -232,14 +231,21 @@ static void emit_sw4(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
 {
     // addr = (R[rs1] + IMM_S) & vm->mem_mask;
     // *(uint32_t*)(&vm->mem[addr]) = R[rs2];
-
 	emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
 	emit(b, "05"); emit4(b, imm_s);         // add eax, imm32
     emit(b, "25"); emit4(b, vm->mem_mask);  // and eax, vm->mem_mask
-
     emit(b, "03 87"); emit4(b, OFF_MEM);    // add eax, [edi + OFF_MEM]
     emit(b, "8B 5F"); emit1(b, OFF_X(rs2)); // mov ebx, [edi + OFF_X(rs2)]
     emit(b, "89 18");                       // mov [eax], ebx
+}
+
+static void emit_xor(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
+{
+    // R5VM_R_F3_XOR:  R[rd] = R[rs1] ^ R[rs2]; break;
+	emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
+    emit(b, "33 47"); emit1(b, OFF_X(rs2)); // xor eax, [edi + OFF_X(rs2)]
+    emit(b, "89 47");       // mov [edi + disp8], eax
+    emit1(b, (uint8_t)OFF_X(rd));
 }
 
 // ---- Interpreter -----------------------------------------------------------
@@ -270,7 +276,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
             else
                 emit_add(jit, rd, rs1, rs2); // R[rd] = R[rs1] + R[rs2]
             break;
-        case R5VM_R_F3_XOR:  R[rd] = R[rs1] ^ R[rs2]; break;
+        case R5VM_R_F3_XOR:  emit_xor(vm, jit, rd, rs1, rs2); // R[rd] = R[rs1] ^ R[rs2]; break;
         case R5VM_R_F3_OR:   R[rd] = R[rs1] | R[rs2]; break;
         case R5VM_R_F3_AND:  R[rd] = R[rs1] & R[rs2]; break;
         case R5VM_R_F3_SLL:  R[rd] = R[rs1] << (R[rs2] & 0x1F); break;
@@ -367,9 +373,11 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
 #endif
         switch (FUNCT3(inst)) {
         case R5VM_S_F3_SW: // 32-bit store (4 bytes)
-            vm->mem[(addr + 3) & vm->mem_mask] = (R[rs2] >> 24) & 0xFF;
-            vm->mem[(addr + 2) & vm->mem_mask] = (R[rs2] >> 16) & 0xFF;
-            /* fall through */
+            emit_sw4(vm, jit, rs1, rs2, IMM_S(inst)); break;
+            // vm->mem[(addr + 3) & vm->mem_mask] = (R[rs2] >> 24) & 0xFF;
+            // vm->mem[(addr + 2) & vm->mem_mask] = (R[rs2] >> 16) & 0xFF;
+            // vm->mem[(addr + 1) & vm->mem_mask] = (R[rs2] >>  8) & 0xFF;
+            // vm->mem[(addr + 0) & vm->mem_mask] = (R[rs2] >>  0) & 0xFF;
         case R5VM_S_F3_SH: // 16-bit store (2 bytes)
             vm->mem[(addr + 1) & vm->mem_mask] = (R[rs2] >> 8) & 0xFF;
             /* fall through */

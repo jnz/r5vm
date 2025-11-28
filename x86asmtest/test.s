@@ -14,5 +14,10 @@ _main:
     mov ebx, [edi + 0xdd] # 0xdd = rs2
     mov [eax], ebx
 
+    mov DWORD PTR [edi + 0x0c], 0xf0
+    mov DWORD PTR [edi + 0x0d], 0x0f
+    mov eax, [edi + 0x0c]
+    xor eax, [edi + 0x0d]
+
     ret
 
