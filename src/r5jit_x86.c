@@ -297,6 +297,27 @@ static void emit_sra(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
     emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
 }
 
+static void emit_slt(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
+{
+    emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // eax = R[rs1]
+    emit(b, "8B 5F"); emit1(b, OFF_X(rs2)); // ebx = R[rs2]
+    emit(b, "39 D8"); // cmp eax, ebx
+    emit(b, "0F 9C C0"); // setl al   (signed compare)
+    emit(b, "0F B6 C0"); // movzx eax, al
+    emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
+}
+
+static void emit_sltu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
+{
+    // R5VM_R_F3_SLTU: R[rd] = (R[rs1] < R[rs2]);
+    emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // eax = R[rs1]
+    emit(b, "8B 5F"); emit1(b, OFF_X(rs2)); // ebx = R[rs2]
+    emit(b, "39 D8"); // cmp eax, ebx
+    emit(b, "0F 92 C0"); // setb al (unsigned compare)
+    emit(b, "0F B6 C0"); // movzx eax, al
+    emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
+}
+
 // ---- Compiler --------------------------------------------------------------
 
 static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
@@ -335,8 +356,8 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
                              else
                                  emit_srl(vm, jit, rd, rs1, rs2); // R[rd] = R[rs1] >> (R[rs2] & 0x1F);
                              break;
-        case R5VM_R_F3_SLT:  R[rd] = ((int32_t)R[rs1] < (int32_t)R[rs2]); break;
-        case R5VM_R_F3_SLTU: R[rd] = (R[rs1] < R[rs2]); break;
+        case R5VM_R_F3_SLT:  emit_slt(vm, jit, rd, rs1, rs2); break; // R[rd] = ((int32_t)R[rs1] < (int32_t)R[rs2]); break;
+        case R5VM_R_F3_SLTU: emit_sltu(vm, jit, rd, rs1, rs2); break; // R[rd] = (R[rs1] < R[rs2]); break;
 #ifdef R5VM_DEBUG
         default:
             r5vm_error(vm, "Unknown R-type funct3", vm->pc-4, inst);
@@ -498,14 +519,13 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
         break;
     /* _--------------------- FENCE / FENCE.I --------------------------_ */
     case (R5VM_OPCODE_FENCE):
-        // no-op
+        emit(jit, "90"); // NOP
         break;
     default:
         r5vm_error(vm, "Unknown opcode", vm->pc-4, inst);
         retcode = false; // unhandled instuction
         break;
     }
-    R[0] = 0; // enforce x0=0
     return retcode;
 }
 
@@ -527,6 +547,7 @@ bool r5jit_compile(r5vm_t* vm, r5jitbuf_t* jit)
     for (uint32_t pc = vm->code_offset; pc < vm->code_offset + vm->code_size; pc+=4) {
         assert(pc < vm->code_size);
         jit->instruction_pointers[pc] = (unsigned) &jit->mem[jit->pos];
+#if 0
         printf("MAP: r5 pc 0x%06x -> [%p] = 0x%08x)) -- ", pc,
             (void*)&jit->instruction_pointers[pc],
             jit->instruction_pointers[pc]);
@@ -535,6 +556,7 @@ bool r5jit_compile(r5vm_t* vm, r5jitbuf_t* jit)
         printf("%02x ", (vm->mem[vm->pc + 1]) & 0xff);
         printf("%02x ", (vm->mem[vm->pc + 0]) & 0xff);
         printf("\n");
+#endif
 
         vm->pc = pc;
         if (r5jit_step(vm, jit) == false) {

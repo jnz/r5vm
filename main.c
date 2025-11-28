@@ -249,6 +249,8 @@ int main(int argc, char** argv)
     // ---------------------------------
     // compare result
     // ---------------------------------
+    assert(vm.zero == 0);
+    assert(vmjit.zero == 0);
     if (memcmp(vm.regs, vmjit.regs, sizeof(vm.regs)) != 0)
     {
         printf("Error register mismatch between interpretor and JIT\n");

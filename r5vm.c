@@ -245,7 +245,7 @@ static bool r5vm_step(r5vm_t* vm)
             fflush(stdout);
             break;
         default:
-            r5vm_error(vm, "Unknown ECALL", vm->pc-4, syscall_id);
+            // r5vm_error(vm, "Unknown ECALL", vm->pc-4, syscall_id);
             retcode = false;
         }
         }
