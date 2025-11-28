@@ -237,7 +237,6 @@ int main(int argc, char** argv)
         hi_time t1 = hi_time_now();
         printf("dt: %f ms (interpreter)\n", 1000.0*hi_time_elapsed(t0, t1));
     }
-    free(vm.mem);
 
     // ------------- JIT --------------
     r5vm_t vmjit;
@@ -246,17 +245,26 @@ int main(int argc, char** argv)
     }
     bool r5jit_x86(r5vm_t * vm);
     r5jit_x86(&vmjit);
-    free(vmjit.mem);
 
     // ---------------------------------
     // compare result
     // ---------------------------------
-    for (int i = 0; i < 32; i++) {
-        if (vm.regs[i] != vmjit.regs[i])
-        {
-            printf("Error register %i mismatch: %i vs. %i\n", i, vm.regs[i], vmjit.regs[i]);
-        }
+    if (memcmp(vm.regs, vmjit.regs, sizeof(vm.regs)) != 0)
+    {
+        printf("Error register mismatch between interpretor and JIT\n");
+        r5vm_dump_state(&vm);
+        r5vm_dump_state(&vmjit);
     }
+    if (memcmp(vm.mem, vmjit.mem, vm.mem_size) != 0)
+    {
+        printf("Error memory mismatch between interpretor and JIT\n");
+        r5vm_dump_state(&vm);
+        r5vm_dump_state(&vmjit);
+    }
+
+    // Free memory
+    free(vm.mem);
+    free(vmjit.mem);
 
     return 0;
 }
