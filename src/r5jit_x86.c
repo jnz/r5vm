@@ -248,7 +248,56 @@ static void emit_xor(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
     emit1(b, (uint8_t)OFF_X(rd));
 }
 
-// ---- Interpreter -----------------------------------------------------------
+static void emit_or(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
+{
+    // R5VM_R_F3_OR:  R[rd] = R[rs1] | R[rs2]; break;
+	emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
+    emit(b, "0b 47"); emit1(b, OFF_X(rs2)); // or  eax, [edi + OFF_X(rs2)]
+    emit(b, "89 47");       // mov [edi + disp8], eax
+    emit1(b, (uint8_t)OFF_X(rd));
+}
+
+static void emit_and(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
+{
+    // R5VM_R_F3_AND:  R[rd] = R[rs1] & R[rs2]; break;
+	emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
+    emit(b, "23 47"); emit1(b, OFF_X(rs2)); // and eax, [edi + OFF_X(rs2)]
+    emit(b, "89 47");       // mov [edi + disp8], eax
+    emit1(b, (uint8_t)OFF_X(rd));
+}
+
+static void emit_sll(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
+{
+    // R5VM_R_F3_SLL:  R[rd] = R[rs1] << (R[rs2] & 0x1F); break;
+	emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // mov ecx, [edi + OFF_X(rs2)]
+    // emit(b, "83 e1 1f");    // and ecx, 0x1f
+	emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
+	emit(b, "d3 e0");       // shl eax, cl
+    emit(b, "89 47");       // mov [edi + disp8], eax
+    emit1(b, (uint8_t)OFF_X(rd));
+}
+
+static void emit_srl(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
+{
+    // R[rd] = R[rs1] >> (R[rs2] & 0x1F)
+    emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // ECX = R[rs2]
+    // emit(b, "83 e1 1f");      // and ecx, 0x1f
+    emit(b, "8b 47"); emit1(b, OFF_X(rs1)); // EAX = R[rs1]
+    emit(b, "d3 e8"); // shr eax, cl   (logical)
+    emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
+}
+
+static void emit_sra(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
+{
+    // R[rd] = ((int32_t)R[rs1]) >> (R[rs2] & 0x1F)
+    emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // ECX = R[rs2]
+    // emit(b, "83 e1 1f");      // and ecx, 0x1f
+    emit(b, "8b 47"); emit1(b, OFF_X(rs1)); // EAX = R[rs1]
+    emit(b, "d3 f8"); // sar eax, cl   (arithmetic)
+    emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
+}
+
+// ---- Compiler --------------------------------------------------------------
 
 static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
 {
@@ -276,15 +325,15 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
             else
                 emit_add(jit, rd, rs1, rs2); // R[rd] = R[rs1] + R[rs2]
             break;
-        case R5VM_R_F3_XOR:  emit_xor(vm, jit, rd, rs1, rs2); // R[rd] = R[rs1] ^ R[rs2]; break;
-        case R5VM_R_F3_OR:   R[rd] = R[rs1] | R[rs2]; break;
-        case R5VM_R_F3_AND:  R[rd] = R[rs1] & R[rs2]; break;
-        case R5VM_R_F3_SLL:  R[rd] = R[rs1] << (R[rs2] & 0x1F); break;
+        case R5VM_R_F3_XOR:  emit_xor(vm, jit, rd, rs1, rs2); break; // R[rd] = R[rs1] ^ R[rs2]; break;
+        case R5VM_R_F3_OR:   emit_or(vm, jit, rd, rs1, rs2); break;  // R[rd] = R[rs1] | R[rs2]; break;
+        case R5VM_R_F3_AND:  emit_and(vm, jit, rd, rs1, rs2); break; // R[rd] = R[rs1] & R[rs2]; break;
+        case R5VM_R_F3_SLL:  emit_sll(vm, jit, rd, rs1, rs2); break; // R[rd] = R[rs1] << (R[rs2] & 0x1F); break;
         case R5VM_R_F3_SRL_SRA:
                              if (FUNCT7(inst) == R5VM_R_F7_SRA)
-                                 R[rd] = ((int32_t)R[rs1]) >> (R[rs2] & 0x1F);
+                                 emit_sra(vm, jit, rd, rs1, rs2); // R[rd] = ((int32_t)R[rs1]) >> (R[rs2] & 0x1F);
                              else
-                                 R[rd] = R[rs1] >> (R[rs2] & 0x1F);
+                                 emit_srl(vm, jit, rd, rs1, rs2); // R[rd] = R[rs1] >> (R[rs2] & 0x1F);
                              break;
         case R5VM_R_F3_SLT:  R[rd] = ((int32_t)R[rs1] < (int32_t)R[rs2]); break;
         case R5VM_R_F3_SLTU: R[rd] = (R[rs1] < R[rs2]); break;
