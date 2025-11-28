@@ -161,10 +161,11 @@ static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "39 D8"); // cmp eax, ebx
     emit(b, "7D 06"); // jge (conditional jump over next 6 bytes)
     emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_index]
+    emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only
+
     printf("BLT Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
         target_pc, (void*)(b->instruction_pointers + target_pc),
         b->instruction_pointers[target_pc]);
-    emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only :-(
 }
 
 static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
@@ -176,12 +177,13 @@ static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "8B 47"); emit1(b, (uint8_t)OFF_X(reg1)); // eax = rs1
     emit(b, "8B 5F"); emit1(b, (uint8_t)OFF_X(reg2)); // ebx = rs2
     emit(b, "39 D8"); // cmp eax, ebx
-    emit(b, "7C 06"); // jl +6  (if eax < ebx, skip)
-    emit(b, "FF 25"); // jmp [instructionPointers[target_index]]
+    emit(b, "7C 06"); // jl +6 bytes  (if eax < ebx, skip)
+    emit(b, "FF 25"); // jmp [instruction_pointers[target_index]]
+    emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
+
     printf("BGE Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
         target_pc, (void*)(b->instruction_pointers + target_pc),
         b->instruction_pointers[target_pc]);
-    emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
 }
 
 static void emit_lw(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)

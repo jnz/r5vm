@@ -47,7 +47,7 @@ typedef struct {
     uint8_t*  mem;
     size_t    mem_size;
     size_t    pos;
-    unsigned* instruction_pointers;
+    unsigned* instruction_pointers; /**< map r5 pc to x86 pc*/
     bool      error;
 } r5jitbuf_t;
 

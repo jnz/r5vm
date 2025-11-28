@@ -110,7 +110,7 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
     uint32_t mem_size = mem_size_power2(mem_size_requested, needed);
     assert((mem_size & (mem_size - 1)) == 0);
 
-    uint8_t* mem = calloc(1, mem_size);
+    uint8_t* mem = calloc(1, mem_size); /* .BSS included */
     if (!mem) {
         fprintf(stderr, "Could not allocate: %i bytes", mem_size);
         fclose(f);
@@ -164,18 +164,17 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
 
     // Initialize VM struct
     memset(vm, 0, sizeof(*vm));
-    vm->mem       = mem;
-    vm->mem_size  = mem_size;
-    vm->mem_mask  = mem_size - 1;
-
+    vm->mem         = mem;
+    vm->mem_size    = mem_size;
+    vm->mem_mask    = mem_size - 1;
     vm->code_offset = h.load_addr;
     vm->code_size   = h.code_size;
     vm->data_offset = h.load_addr + h.code_size;
     vm->data_size   = h.data_size;
     vm->bss_offset  = vm->data_offset + h.data_size;
     vm->bss_size    = h.bss_size;
+    vm->entry       = h.entry & vm->mem_mask;
 
-    vm->entry = h.entry & vm->mem_mask;
     r5vm_reset(vm);
 
     return 0;
