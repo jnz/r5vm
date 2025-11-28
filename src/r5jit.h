@@ -44,11 +44,11 @@ typedef int (*r5jitfn_t)();
 // ---- VM data structure -----------------------------------------------------
 
 typedef struct {
-    uint8_t*  mem;
-    size_t    mem_size;
-    size_t    pos;
-    unsigned* instruction_pointers; /**< map r5 pc to x86 pc*/
-    bool      error;
+    uint8_t*  mem; /**< JIT generated x86 code */
+    size_t    mem_size; /**< bytes in mem */
+    size_t    pos; /**< Current JIT generator offset in mem (bytes) */
+    unsigned* instruction_pointers; /**< map r5 program counter to x86 pc*/
+    bool      error; /**< set to true if something is bad */
 } r5jitbuf_t;
 
 // ---- Functions -------------------------------------------------------------
