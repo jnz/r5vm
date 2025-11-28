@@ -19,19 +19,56 @@ loop_bge:
     bge  x3, x4, loop_bge   # while x3 >= 0
 
     # ---- Test 3: LW ----------------------
-    #   x5 = Address of mydata
-    #   x6 = Value at offset 0 (0x11)
-    #   x7 = Value at offset 4 (0x22)
-
     la   x5, mydata     # x5 = &mydata
     lw   x6, 0(x5)      # x6 = 0x11223344
     lw   x7, 4(x5)      # x7 = 0x55667788
 
+    # ---- Test 4: SW ----------------------
+    la   x8, myout      # x8 = &myout
+    sw   x6, 0(x8)      # myout[0] = x6
+    sw   x7, 4(x8)      # myout[1] = x7
+    lw   x6, 4(x8)      # x6 = myout[1]
+
+    # ---- Test 5: XOR ---------------------
+    xor  x9, x6, x7     # x9 = x6 ^ x7
+
+    addi x10, x0, 0x55
+    addi x11, x0, 0xAA
+    xor  x12, x10, x11   # x12 = 0xFF
+
+    # ---- Test 6: OR ----------------------
+    # Test: OR sollte Bits setzen
+    # x13 = x10 | x11  (0x55 | 0xAA = 0xFF)
+    or   x13, x10, x11
+
+    # ---- Test 7: AND ---------------------
+    # x14 = x10 & x11  (0x55 & 0xAA = 0x00)
+    and  x14, x10, x11
+
+    # ---- Test 8: SLL ---------------------
+    # x15 = x10 << 3   (0x55 << 3 = 0x2A8)
+    addi x16, x0, 3
+    sll  x15, x10, x16
+
+    # ---- Test 9: SRL ---------------------
+    addi x20, x0, 0xF0       # 0b11110000
+    addi x21, x0, 4
+    srl  x22, x20, x21       # expected 0x0F
+
+    # ---- Test 10: SRA --------------------
+    addi x23, x0, -16        # 0xFFFFFFF0 => signed negative
+    addi x24, x0, 2
+    sra  x25, x23, x24       # expected 0xFFFFFFFC  (sign-extended)
+
     ebreak
 
-    # ----------------- LW-Test ------------
+    # ----------------- Data ------------
     .section .data
 mydata:
     .word 0x11223344
     .word 0x55667788
+
+myout:
+    .word 0
+    .word 0
 
