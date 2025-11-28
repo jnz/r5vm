@@ -36,6 +36,7 @@
 #include <assert.h>
 
 #include "r5vm.h"
+#include "src/hires_time.h"
 
 // -------------------------------------------------------------
 
@@ -230,7 +231,12 @@ int main(int argc, char** argv)
         return -2;
     }
     // Run in interpreter
-    r5vm_run(&vm, 0);
+    {
+        hi_time t0 = hi_time_now();
+        r5vm_run(&vm, 0);
+        hi_time t1 = hi_time_now();
+        printf("dt: %f ms (interpreter)\n", 1000.0*hi_time_elapsed(t0, t1));
+    }
     free(vm.mem);
 
     // ------------- JIT --------------

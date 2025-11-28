@@ -40,10 +40,11 @@
 
 #include "r5vm.h"
 #include "r5jit.h"
+#include "hires_time.h"
 
 // ---- Defines ---------------------------------------------------------------
 
-#define OFF_PC    (offsetof(r5vm_t, pc)) /* Register offsete (bytes) in vm_t */
+#define OFF_PC    (offsetof(r5vm_t, pc)) /* Register offset (bytes) in vm_t */
 #define OFF_X(n)  (offsetof(r5vm_t, regs) + (n)*4) /* Register offset in vm_t */
 #define OFF_MEM   (offsetof(r5vm_t, mem))
 #define OFF_MASK  (offsetof(r5vm_t, mem_mask))
@@ -216,6 +217,17 @@ static void emit_lw(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
     emit1(b, (uint8_t)OFF_X(rd));
 }
 
+static void emit_auipc(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
+{
+    // R[rd] = vm->pc-4 + IMM_U(inst);
+    uint32_t target_pc = (vm->pc-4 + immu) & vm->mem_mask;
+
+    emit(b, "B8");    // mov eax, imm32
+	emit4(b, target_pc);
+    emit(b, "89 47");   // mov [edi + disp8], eax
+    emit1(b, (uint8_t)OFF_X(rd));
+}
+
 // ---- Interpreter -----------------------------------------------------------
 
 static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
@@ -291,7 +303,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
         break;
     /* _--------------------- AUIPC -----------------------------------_ */
     case (R5VM_OPCODE_AUIPC):
-        R[rd] = vm->pc-4 + IMM_U(inst);
+        emit_auipc(vm, jit, rd, IMM_U(inst)); // R[rd] = vm->pc-4 + IMM_U(inst);
         break;
     /* _--------------------- LUI -------------------------------------_ */
     case (R5VM_OPCODE_LUI):
@@ -489,7 +501,14 @@ bool r5jit_x86(r5vm_t* vm)
 
     if (r5jit_compile(vm, &jit)) {
         r5jit_dump(&jit);
+
+		{
+        hi_time t0 = hi_time_now();
         r5jit_exec(vm, &jit);
+        hi_time t1 = hi_time_now();
+        printf("dt: %f ms (JIT)\n", 1000.0*hi_time_elapsed(t0, t1));
+		}
+
         success = true;
     }
 

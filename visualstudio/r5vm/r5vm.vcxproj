@@ -26,6 +26,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\r5vm.h" />
+    <ClInclude Include="..\..\src\hires_time.h" />
     <ClInclude Include="..\..\src\r5jit.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

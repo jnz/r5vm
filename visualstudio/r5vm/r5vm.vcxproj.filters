@@ -21,10 +21,10 @@
     <ClCompile Include="..\..\main.c">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\r5jit_x86_64.c">
+    <ClCompile Include="..\..\src\r5jit_windows.c">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\r5jit_windows.c">
+    <ClCompile Include="..\..\src\r5jit_x86.c">
       <Filter>Quelldateien</Filter>
     </ClCompile>
   </ItemGroup>
@@ -33,6 +33,9 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\r5jit.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\hires_time.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>
