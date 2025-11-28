@@ -228,6 +228,20 @@ static void emit_auipc(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
     emit1(b, (uint8_t)OFF_X(rd));
 }
 
+static void emit_sw4(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
+{
+    // addr = (R[rs1] + IMM_S) & vm->mem_mask;
+    // *(uint32_t*)(&vm->mem[addr]) = R[rs2];
+
+	emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
+	emit(b, "05"); emit4(b, imm_s);         // add eax, imm32
+    emit(b, "25"); emit4(b, vm->mem_mask);  // and eax, vm->mem_mask
+
+    emit(b, "03 87"); emit4(b, OFF_MEM);    // add eax, [edi + OFF_MEM]
+    emit(b, "8B 5F"); emit1(b, OFF_X(rs2)); // mov ebx, [edi + OFF_X(rs2)]
+    emit(b, "89 18");                       // mov [eax], ebx
+}
+
 // ---- Interpreter -----------------------------------------------------------
 
 static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
