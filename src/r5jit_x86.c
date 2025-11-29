@@ -763,25 +763,25 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
     /* _--------------------- System Call ----------------------------_ */
     case (R5VM_OPCODE_SYSTEM):
         if (FUNCT3(inst) == 0) {
-			uint32_t imm12 = (inst >> 20) & 0xFFF;
-			uint32_t syscall_id = vm->a7;
+            uint32_t imm12 = (inst >> 20) & 0xFFF;
+            uint32_t syscall_id = vm->a7;
             if (imm12 == 0) { /* ecall */
-				emit_ecall(vm, jit);
+                emit_ecall(vm, jit);
             }
             else if (imm12 == 1) {  /* ebreak */
-				r5jit_emit_epilog(jit);
+                r5jit_emit_epilog(jit);
             }
             else {
-				r5vm_error(vm, "Unknown system call", vm->pc-4, inst);
+                r5vm_error(vm, "Unknown system call", vm->pc-4, inst);
                 jit->error = true;
                 retcode = false;
             }
         }
         else
         {
-			r5vm_error(vm, "Unknown system call", vm->pc - 4, inst);
-			jit->error = true;
-			retcode = false;
+            r5vm_error(vm, "Unknown system call", vm->pc - 4, inst);
+            jit->error = true;
+            retcode = false;
         }
         break;
     /* _--------------------- FENCE / FENCE.I --------------------------_ */
