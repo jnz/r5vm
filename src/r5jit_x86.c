@@ -283,6 +283,53 @@ static void emit_beq(const r5vm_t* vm, r5jitbuf_t* b,
         b->instruction_pointers[target_pc]);
 }
 
+static void emit_bne(const r5vm_t* vm, r5jitbuf_t* b,
+                     int rs1, int rs2, int immb)
+{
+    // R5VM_B_F3_BNE:  // if (R[rs1] != R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+    int target_pc = (vm->pc - 4 + immb) & vm->mem_mask;
+    emit(b, "8b 47"); emit1(b, OFF_X(rs1));  // eax = R[rs1] (mov eax, [edi + rs1*4])
+    emit(b, "8b 5f"); emit1(b, OFF_X(rs2));  // ebx = R[rs2]
+    emit(b, "39 D8"); // cmp eax, ebx
+    emit(b, "74 06"); // je +6 (skip jump if equal)
+    emit(b, "FF 25"); // jmp [instruction_pointers + target_pc]
+    emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
+
+    printf("BNE Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
+        target_pc, (void*)(b->instruction_pointers + target_pc),
+        b->instruction_pointers[target_pc]);
+}
+
+static void emit_bltu(const r5vm_t* vm, r5jitbuf_t* b,
+                      int rs1, int rs2, int immb)
+{
+    // R5VM_B_F3_BLTU: // if (R[rs1] <  R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+    int target_pc = (vm->pc - 4 + immb) & vm->mem_mask;
+    emit(b, "8b 47"); emit1(b, OFF_X(rs1));  // eax = R[rs1] (mov eax, [edi + rs1*4])
+    emit(b, "8b 5f"); emit1(b, OFF_X(rs2));  // ebx = R[rs2]
+    emit(b, "39 D8"); // cmp eax, ebx
+    emit(b, "73 06"); // jae +6 (unsigned: if eax >= ebx, skip)
+    emit(b, "FF 25"); // jmp [instruction_pointers + target_pc]
+    emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
+
+    printf("BLTU Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
+        target_pc, (void*)(b->instruction_pointers + target_pc),
+        b->instruction_pointers[target_pc]);
+}
+
+static void emit_bgeu(const r5vm_t* vm, r5jitbuf_t* b,
+                      int rs1, int rs2, int immb)
+{
+    // R5VM_B_F3_BGEU: // if (R[rs1] >= R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+    int target_pc = (vm->pc - 4 + immb) & vm->mem_mask;
+    emit(b, "8b 47"); emit1(b, OFF_X(rs1));  // eax = R[rs1] (mov eax, [edi + rs1*4])
+    emit(b, "8b 5f"); emit1(b, OFF_X(rs2));  // ebx = R[rs2]
+    emit(b, "39 D8"); // cmp eax, ebx
+    emit(b, "72 06"); // jb +6 (unsigned: skip if eax < ebx)
+    emit(b, "FF 25"); // jmp [instruction_pointers + target_pc]
+    emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
+}
+
 static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
                      int reg1, int reg2, int immb)
 {
@@ -631,13 +678,11 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
                   | (vm->mem[(vm->pc + 1) & vm->mem_mask] << 8)
                   | (vm->mem[(vm->pc + 2) & vm->mem_mask] << 16)
                   | (vm->mem[(vm->pc + 3) & vm->mem_mask] << 24);
-
     vm->pc = (vm->pc + 4) & vm->mem_mask;
     /* decode/execute: */
     const uint32_t rd  = RD(inst) & 0x7f;
     const uint32_t rs1 = RS1(inst) & 0x7f;
     const uint32_t rs2 = RS2(inst) & 0x7f;
-    uint32_t* R = vm->regs;
     switch (OPCODE(inst))
     {
     /* _--------------------- R-Type instuctions ---------------------_ */
@@ -741,12 +786,12 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
     /* _--------------------- Branch ---------------------------------_ */
     case (R5VM_OPCODE_BRANCH):
         switch (FUNCT3(inst)) {
-        case R5VM_B_F3_BEQ:  emit_beq(vm, jit, rs1, rs2, IMM_B(inst)); break; // if (R[rs1] == R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
-        case R5VM_B_F3_BNE:  if (R[rs1] != R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
-        case R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
-        case R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
-        case R5VM_B_F3_BLT:  emit_blt(vm, jit, rs1, rs2, IMM_B(inst)); break; // if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
-        case R5VM_B_F3_BGE:  emit_bge(vm, jit, rs1, rs2, IMM_B(inst)); break; // if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
+        case R5VM_B_F3_BEQ:  emit_beq(vm, jit, rs1, rs2, IMM_B(inst)); break;  // if (R[rs1] == R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+        case R5VM_B_F3_BNE:  emit_bne(vm, jit, rs1, rs2, IMM_B(inst)); break;  // if (R[rs1] != R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+        case R5VM_B_F3_BLTU: emit_bltu(vm, jit, rs1, rs2, IMM_B(inst)); break; // if (R[rs1] <  R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+        case R5VM_B_F3_BGEU: emit_bgeu(vm, jit, rs1, rs2, IMM_B(inst)); break; // if (R[rs1] >= R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+        case R5VM_B_F3_BLT:  emit_blt(vm, jit, rs1, rs2, IMM_B(inst)); break;  // if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
+        case R5VM_B_F3_BGE:  emit_bge(vm, jit, rs1, rs2, IMM_B(inst)); break;  // if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
 #ifdef R5VM_DEBUG
         default:
             r5vm_error(vm, "Unknown Branch funct3", vm->pc-4, inst);
