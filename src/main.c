@@ -134,7 +134,6 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
 		fclose(f);
 		return -7;
 	}
-
 	size_t n = fread(&mem[h.load_addr], 1, h.code_size, f);
 	if (n != h.code_size) {
         fprintf(stderr, "Could not read .code section");

@@ -166,7 +166,7 @@ typedef struct r5vm_s
     uint32_t data_size;   /**< Bytes in .data section */
     uint32_t bss_offset;  /**< Offset in mem for .bss section */
     uint32_t bss_size;    /**< Bytes in .bss section */
-    uint32_t entry;       /**< Entry point (read-only) */
+    uint32_t entry;       /**< Program entry point (read-only) */
 } r5vm_t;
 
 // ---- Execution control -----------------------------------------------------

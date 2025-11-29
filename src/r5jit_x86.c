@@ -165,7 +165,7 @@ static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "8B 5F"); emit1(b, OFF_X(reg2)); // ebx = rs2 | mov ebx, [edi+off]
     emit(b, "39 D8"); // cmp eax, ebx
     emit(b, "7D 06"); // jge (conditional jump over next 6 bytes)
-    emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_index]
+    emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_pc]
     emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only
 
     printf("BLT Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
@@ -183,7 +183,7 @@ static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "8B 5F"); emit1(b, OFF_X(reg2)); // ebx = rs2
     emit(b, "39 D8"); // cmp eax, ebx
     emit(b, "7C 06"); // jl +6 bytes  (if eax < ebx, skip)
-    emit(b, "FF 25"); // jmp [instruction_pointers[target_index]]
+    emit(b, "FF 25"); // jmp [instruction_pointers[target_pc]]
     emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
 
     printf("BGE Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
@@ -424,6 +424,21 @@ static void emit_sltu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
     emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
 }
 
+static void emit_jal(const r5vm_t* vm, r5jitbuf_t* b, int rd, int imm)
+{
+    // R[rd] = vm->pc;
+    // vm->pc = (vm->pc + IMM_J(inst) - 4) & vm->mem_mask;
+    int target_pc = (vm->pc-4 + imm) & vm->mem_mask;
+
+    // mov DWORD PTR [edi + OFF_X(rd)], target_pc
+    emit(b, "c7 47"); emit1(b, OFF_X(rd)); emit4(b, vm->pc); // R[rd] = vm->pc
+    emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_index]
+    emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only
+    printf("JAL Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
+        target_pc, (void*)(b->instruction_pointers + target_pc),
+        b->instruction_pointers[target_pc]);
+}
+
 // ---- Compiler --------------------------------------------------------------
 
 static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
@@ -526,12 +541,9 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
     case (R5VM_OPCODE_SW):
         {
         switch (FUNCT3(inst)) { // vm->mem[addr & vm->mem_mask] = R[rs2]
-        case R5VM_S_F3_SW:
-            emit_sw4(vm, jit, rs1, rs2, IMM_S(inst)); break; // 32-bit store (4 bytes)
-        case R5VM_S_F3_SH:
-            emit_sw2(vm, jit, rs1, rs2, IMM_S(inst)); break; // 16-bit store (2 bytes)
-        case R5VM_S_F3_SB:
-            emit_sw1(vm, jit, rs1, rs2, IMM_S(inst)); break; // 8-bit store (1 byte)
+        case R5VM_S_F3_SW: emit_sw4(vm, jit, rs1, rs2, IMM_S(inst)); break; // 32-bit store (4 bytes)
+        case R5VM_S_F3_SH: emit_sw2(vm, jit, rs1, rs2, IMM_S(inst)); break; // 16-bit store (2 bytes)
+        case R5VM_S_F3_SB: emit_sw1(vm, jit, rs1, rs2, IMM_S(inst)); break; // 8-bit store (1 byte)
 #ifdef R5VM_DEBUG
         default:
             r5vm_error(vm, "Illegal store width", vm->pc-4, inst);
@@ -558,8 +570,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
         break;
     /* _--------------------- JAL ------------------------------------_ */
     case (R5VM_OPCODE_JAL):
-        R[rd] = vm->pc;
-        vm->pc = (vm->pc + IMM_J(inst) - 4) & vm->mem_mask;
+        emit_jal(vm, jit, rd, IMM_J(inst)); // R[rd] = vm->pc; vm->pc = (vm->pc + IMM_J(inst) - 4) & vm->mem_mask;
         break;
     /* _--------------------- JALR -----------------------------------_ */
     case (R5VM_OPCODE_JALR):
