@@ -210,15 +210,41 @@ _start:
     ########################################
 
     jal  x5, jal_target
-    addi x6, x0, 1111          # if JAL fails, we land HERE
+    addi x6, x0, 1111    # if JAL fails, we land HERE
 jal_target:
-    addi x6, x0, 1234          # normal case: correct jump
-    sw   x6, 0(x10)            # store marker
+    addi x6, x0, 1234    # normal case: correct jump
+    sw   x6, 0(x10)      # store marker
     addi x10, x10, 4
-    sw   x5, 0(x10)            # return address
+    sw   x5, 0(x10)      # return address
     addi x10, x10, 4
 
+    ########################################
+    # Test 16: JAL + JALR
+    ########################################
+
+    addi x5, x0, 0       # x5 = initial
+    jal  x6, func_body   # x6 = return address, PC+4
+
+    # Coming back
+    sw x5, 0(x10)
+    addi x10, x10, 4
+    sw x6, 0(x10)
+    addi x10, x10, 4
+
+    ########################################
+    # TEST END
+    ########################################
+
     ebreak
+
+# -------------------------
+# Fake Funktion
+# -------------------------
+func_body:
+    addi x5, x0, 1234       # Marker: Funktion wurde ausgeführt
+
+    # JALR Return
+    jalr x0, 0(x6)          # goto return address
 
 ############################################################
 # Data
