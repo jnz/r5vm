@@ -26,7 +26,8 @@ _main:
     # shl eax, cl
 
     mov al, [ebx + eax]
-    and eax, 0xff
+    cbw
+
 
     ret
 

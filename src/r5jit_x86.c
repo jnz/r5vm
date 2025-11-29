@@ -241,7 +241,8 @@ static void emit_lb(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
     emit4(b, OFF_MEM);      // ebx = vm->mem
     // al = *(int8_t*)(ebx + eax)
     emit(b, "8a 04 03");    // mov al, [ebx + eax]
-    emit(b, "98");          // cwde (sign extend AL to EAX)
+    emit(b, "66 98");       // cbw (sign extend AL to AX)
+    emit(b, "98");          // cwde (sign extend AX to EAX)
     emit(b, "89 47");       // mov [edi + disp8], eax
     emit1(b, OFF_X(rd));    // store into rd
 }
