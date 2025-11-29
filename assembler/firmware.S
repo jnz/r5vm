@@ -232,6 +232,110 @@ jal_target:
     addi x10, x10, 4
 
     ########################################
+    # Test 17: SLLI
+    ########################################
+    addi x5, x0, 0x15    # 0b00010101
+    slli x7, x5, 3       # expect 0xA8
+
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+    # shift by 0
+    slli x7, x5, 0       # expect unchanged (0x15)
+
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+    # write into x0 should be ignored
+    slli x0, x5, 4
+
+    ########################################
+    # Test 18: SRLI
+    ########################################
+
+    # --- Fall 1: normal (0xF0 >> 4 = 0x0F)
+    addi x5, x0, 0xF0
+    srli x7, x5, 4          # expect 0x0F
+
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # --- Fall 2: shamt = 0 (no change)
+    srli x7, x5, 0          # expect 0xF0
+
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # --- Fall 3: großes Muster: x5 = 0x80000000
+    lui  x5, 0x80000         # loads 0x80000000
+    srli x7, x5, 1           # expect 0x40000000
+
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # --- Fall 4: weiteres Shiften
+    # 0x80000000 >> 31 = 1
+    srli x7, x5, 31          # expect 1
+
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    ########################################
+    # Test 19: SRAI
+    ########################################
+    addi x5, x0, -16
+    srai x7, x5, 2         # expect 0xFFFFFFFC
+
+    sw x7, 0(x10)
+    addi x10, x10, 4
+
+    addi x5, x0, -1
+    srai x7, x5, 5         # expect 0xFFFFFFFF
+
+    sw x7, 0(x10)
+    addi x10, x10, 4
+
+    srai x7, x5, 0         # expect unchanged (-1)
+
+    sw x7, 0(x10)
+    addi x10, x10, 4
+
+    ########################################
+    # Test 20: SLTI
+    ########################################
+    addi x5, x0, -5
+    slti x7, x5, 10        # 1
+
+    sw x7, 0(x10)
+    addi x10, x10, 4
+
+    addi x5, x0, 20
+    slti x7, x5, -1        # 0 (20 < -1 is false)
+
+    sw x7, 0(x10)
+    addi x10, x10, 4
+
+    ########################################
+    # Test 21: SLTIU
+    ########################################
+    addi x5, x0, -1        # 0xFFFFFFFF
+    sltiu x7, x5, 1        # 0
+
+    sw x7, 0(x10)
+    addi x10, x10, 4
+
+    addi x5, x0, 0
+    sltiu x7, x5, 1        # 1
+
+    sw x7, 0(x10)
+    addi x10, x10, 4
+
+
+    ########################################
     # TEST END
     ########################################
 
