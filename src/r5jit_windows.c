@@ -28,6 +28,8 @@
  * THE SOFTWARE.
  */
 
+#if defined(_WIN32)
+
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -47,4 +49,6 @@ void r5jit_free_rwx_mem(void* mem)
         VirtualFree(mem, 0, MEM_RELEASE);
     }
 }
+
+#endif /* _WIN32 */
 
