@@ -8,6 +8,20 @@ extern "C" {
 #include <stdarg.h>
 #include <stddef.h>
 
+#ifndef UINT32_MAX /* probably no stdint.h included */
+/* Signed integer types */
+typedef signed char        int8_t;
+typedef short              int16_t;
+typedef int                int32_t;
+typedef long long          int64_t;
+
+/* Unsigned integer types */
+typedef unsigned char      uint8_t;
+typedef unsigned short     uint16_t;
+typedef unsigned int       uint32_t;
+typedef unsigned long long uint64_t;
+#endif
+
 // --- Math ---------------------------------------------------------------
 #ifndef M_PI
 #define M_PI 3.14159265358979323846

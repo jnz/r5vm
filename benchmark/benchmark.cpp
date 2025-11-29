@@ -1,4 +1,3 @@
-#include <stdint.h>
 #include "qvmlib.h"
 
 static volatile uint64_t sink64;
@@ -31,8 +30,8 @@ static void compute_fp()
 
 static void compute_mem()
 {
-    constexpr size_t N = 256 * 1024;
-    static uint32_t v[N];
+    size_t N = 256 * 1024;
+    static uint32_t v[256 * 1024];
 
     for (size_t i = 0; i < N; ++i)
         v[i] = (uint32_t)(i * 2654435761u);

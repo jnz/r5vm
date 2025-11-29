@@ -63,7 +63,7 @@ $(info [r5vm] arch/abi:      $(ARCH)/$(ABI))
 -include config.mk
 
 # --- Build rules --------------------------------------------------
-all: cppbenchmarkvm.bin
+all: cppbenchmarkvm.r5m
 
 %.o: %.s
 	$(AS) $(ASFLAGS) -c -o $@ $<
@@ -77,10 +77,10 @@ cppbenchmarkvm.elf: $(OBJ) r5vm.ld
 	@echo "Section sizes (bytes):"
 	@$(SIZE) -A -d $@
 
-cppbenchmarkvm.bin: cppbenchmarkvm.elf
-	$(OBJCOPY) -O binary $< $@
+cppbenchmarkvm.r5m: cppbenchmarkvm.elf
 	$(OBJDUMP) -D $< > cppbenchmarkvm.list
+	python ../r5asm/r5asm.py --verbose $< $@
 
 clean:
-	rm -f *.o *.elf *.bin *.list
+	rm -f *.o *.elf *.bin *.list *.r5m
 
