@@ -105,6 +105,9 @@ loop_bge:
     lb   x29, 1(x13)    # signed byte = 0x7F 127
     lbu  x30, 1(x13)    # unsigned    = 0x7F 127
 
+    # ---- Test 14: LUI --------------------
+    lui x31, 0xABCD
+
     # ----------------- End --------------
     ebreak
 
