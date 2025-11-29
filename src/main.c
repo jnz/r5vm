@@ -253,13 +253,13 @@ int main(int argc, char** argv)
     assert(vmjit.zero == 0);
     if (memcmp(vm.regs, vmjit.regs, sizeof(vm.regs)) != 0)
     {
-        printf("Error register mismatch between interpretor and JIT\n");
+        printf("Error: register mismatch between interpretor and JIT\n");
         r5vm_dump_state(&vm);
         r5vm_dump_state(&vmjit);
     }
     if (memcmp(vm.mem, vmjit.mem, vm.mem_size) != 0)
     {
-        printf("Error memory mismatch between interpretor and JIT\n");
+        printf("Error: memory mismatch between interpretor and JIT\n");
     }
 
     // Free memory
