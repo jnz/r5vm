@@ -35,7 +35,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#include "../r5vm.h"
+#include "r5vm.h"
 
 // ---- Defines ---------------------------------------------------------------
 
