@@ -256,7 +256,8 @@ int main(int argc, char** argv)
         r5vm_dump_state(&vm);
         r5vm_dump_state(&vmjit);
     }
-    if (memcmp(vm.mem, vmjit.mem, vm.mem_size) != 0)
+    if ((vm.mem_size != vmjit.mem_size) ||
+        (memcmp(vm.mem, vmjit.mem, vm.mem_size) != 0))
     {
         printf("Error: memory mismatch between interpretor and JIT\n");
     }
