@@ -81,19 +81,29 @@ loop_bge:
     addi x23, x0, 1 # x23 = 1
     sltu x24, x22, x23      # expected: x24 = 1
 
-    # ---- Test 13: SB (8-bit Store) --------
+    # ---- Test 13: STORE/LOAD -------------
     addi x20, x0, 0xAA       # x20 = 0xAA
     la   x21, myout8         # x21 = &myout8
     sb   x20, 0(x21)         # myout8[0] = 0xAA
     # reload to verify
     lb   x22, 0(x21)         # x22 = 0xAA
 
-    # ---- Test 14: SH (16-bit Store) -------
-    addi x23, x0, 0x1234     # x23 = 0x1234
+    addi x23, x0, 0x123      # x23 = 0x123
     la   x24, myout16        # x24 = &myout16
-    sh   x23, 0(x24)         # myout16[0] = 0x1234
-    # reload to verify
-    lh   x25, 0(x24)         # x25 = 0x1234
+    sh   x23, 0(x24)         # myout16[0] = 0x123
+    lh   x25, 0(x24)         # x25 = 0x123 (verify)
+
+    la   x13, testbytes
+    lh   x14, 0(x13)    # signed load  0x80 0x7F expected = 0x7F80 (but sign extended!)
+    lhu  x15, 0(x13)    # unsigned expected = 0x7F80
+    lh   x16, 2(x13)    # signed 16bit from 0xFF 0x01 expected = 0x01FF or sign extended?
+    lhu  x17, 2(x13)    # unsigned 0x01FF
+
+    lb   x27, 0(x13)    # signed byte = 0x80 -128 0xFFFFFF80
+    lbu  x28, 0(x13)    # unsigned    = 0x80 128
+
+    lb   x29, 1(x13)    # signed byte = 0x7F 127
+    lbu  x30, 1(x13)    # unsigned    = 0x7F 127
 
     # ----------------- End --------------
     ebreak
@@ -107,4 +117,16 @@ mydata:
 myout:
     .word 0
     .word 0
+
+myout8:
+    .byte 0x00
+
+myout16:
+    .half 0x0000
+
+testbytes:
+    .byte 0x80      # signed = -128, unsigned = 128
+    .byte 0x7F      # signed = 127,  unsigned = 127
+    .byte 0xFF      # signed = -1,   unsigned = 255
+    .byte 0x01      # signed = 1,    unsigned = 1
 
