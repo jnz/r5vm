@@ -81,6 +81,21 @@ loop_bge:
     addi x23, x0, 1 # x23 = 1
     sltu x24, x22, x23      # expected: x24 = 1
 
+    # ---- Test 13: SB (8-bit Store) --------
+    addi x20, x0, 0xAA       # x20 = 0xAA
+    la   x21, myout8         # x21 = &myout8
+    sb   x20, 0(x21)         # myout8[0] = 0xAA
+    # reload to verify
+    lb   x22, 0(x21)         # x22 = 0xAA
+
+    # ---- Test 14: SH (16-bit Store) -------
+    addi x23, x0, 0x1234     # x23 = 0x1234
+    la   x24, myout16        # x24 = &myout16
+    sh   x23, 0(x24)         # myout16[0] = 0x1234
+    # reload to verify
+    lh   x25, 0(x24)         # x25 = 0x1234
+
+    # ----------------- End --------------
     ebreak
 
     # ----------------- Data -------------
