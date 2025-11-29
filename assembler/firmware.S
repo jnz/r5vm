@@ -334,6 +334,226 @@ jal_target:
     sw x7, 0(x10)
     addi x10, x10, 4
 
+    ########################################
+    # Test 22: BEQ
+    ########################################
+
+    # Case 1: branch NOT taken
+    # 1 != 2 -> fallthrough -> result = 111
+
+    addi x5, x0, 1
+    addi x6, x0, 2
+
+    beq  x5, x6, beq_taken_1
+    addi x7, x0, 111      # fallthrough path
+    j    beq_done_1
+
+beq_taken_1:
+    addi x7, x0, 999      # should NOT be executed
+
+beq_done_1:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 2: branch TAKEN (forward jump)
+    # 5 == 5 -> branch -> result = 222
+
+    addi x5, x0, 5
+    addi x6, x0, 5
+
+    beq  x5, x6, beq_taken_2
+    addi x7, x0, 111      # should NOT run
+    j    beq_done_2
+
+beq_taken_2:
+    addi x7, x0, 222      # expected
+
+beq_done_2:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 3: branch TAKEN (backward loop)
+    # tests negative immediate and loop logic
+
+    addi x5, x0, 0       # counter
+    addi x6, x0, 3       # limit
+
+beq_loop:
+    addi x5, x5, 1
+    beq  x5, x6, beq_exit_loop
+    j    beq_loop
+
+beq_exit_loop:
+    sw   x5, 0(x10)      # expected: 3
+    addi x10, x10, 4
+
+    ########################################
+    # Test 23: BNE
+    ########################################
+
+    # Case 1: branch NOT taken
+    # 5 == 5 -> BNE false -> fallthrough
+
+    addi x5, x0, 5
+    addi x6, x0, 5
+
+    bne  x5, x6, bne_taken_1
+    addi x7, x0, 111      # expected
+    j    bne_done_1
+
+bne_taken_1:
+    addi x7, x0, 999      # should NOT execute
+
+bne_done_1:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 2: branch TAKEN (forward)
+    # 1 != 2 -> branch
+
+    addi x5, x0, 1
+    addi x6, x0, 2
+
+    bne  x5, x6, bne_taken_2
+    addi x7, x0, 111      # should NOT happen
+    j    bne_done_2
+
+bne_taken_2:
+    addi x7, x0, 222      # expected
+
+bne_done_2:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 3: backward loop check
+    # Loop until x5 != x6 becomes true
+
+    addi x5, x0, 0
+    addi x6, x0, 3
+
+bne_loop:
+    addi x5, x5, 1
+    bne x5, x6, bne_loop   # loop until x5 == x6
+    # exit when equal
+
+    sw x5, 0(x10)          # expected: 3
+    addi x10, x10, 4
+
+
+    ########################################
+    # Test 24: BLTU (unsigned)
+    ########################################
+
+    # Case 1: NOT taken
+    # 0xFFFFFFFE < 1 (unsigned) is false
+
+    addi x5, x0, -2        # 0xFFFFFFFE
+    addi x6, x0, 1
+
+    bltu x5, x6, bltu_taken_1
+    addi x7, x0, 111       # expected path
+    j    bltu_done_1
+
+bltu_taken_1:
+    addi x7, x0, 999       # should NOT happen
+
+bltu_done_1:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 2: TAKEN (forward jump)
+    # 1 < 2 unsigned -> true
+
+    addi x5, x0, 1
+    addi x6, x0, 2
+
+    bltu x5, x6, bltu_taken_2
+    addi x7, x0, 111       # should NOT happen
+    j    bltu_done_2
+
+bltu_taken_2:
+    addi x7, x0, 222       # expected
+
+bltu_done_2:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 3: backward loop
+    # count until x5 >= x6 unsigned
+
+    addi x5, x0, 0
+    addi x6, x0, 3
+
+bltu_loop:
+    addi x5, x5, 1
+    bltu x5, x6, bltu_loop
+    # exit when x5 >= x6 unsigned
+
+    sw x5, 0(x10)          # expected: 3
+    addi x10, x10, 4
+
+
+    ########################################
+    # Test 25: BGEU (unsigned)
+    ########################################
+
+    # Case 1: NOT taken
+    # 1 >= 5 unsigned is false
+
+    addi x5, x0, 1
+    addi x6, x0, 5
+
+    bgeu x5, x6, bgeu_taken_1
+    addi x7, x0, 111       # expected
+    j    bgeu_done_1
+
+bgeu_taken_1:
+    addi x7, x0, 999       # should NOT run
+
+bgeu_done_1:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 2: TAKEN
+    # 0xFFFFFFFF >= 0 unsigned -> true
+
+    addi x5, x0, -1        # 0xFFFFFFFF
+    addi x6, x0, 0
+
+    bgeu x5, x6, bgeu_taken_2
+    addi x7, x0, 111       # should NOT happen
+    j    bgeu_done_2
+
+bgeu_taken_2:
+    addi x7, x0, 222       # expected
+
+bgeu_done_2:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 3: backward loop
+    # iterate until x5 >= x6 unsigned
+
+    addi x5, x0, 0
+    addi x6, x0, 3
+
+bgeu_loop:
+    addi x5, x5, 1
+    bgeu x5, x6, bgeu_exit_loop
+    j    bgeu_loop
+
+bgeu_exit_loop:
+    sw x5, 0(x10)          # expected: 3
+    addi x10, x10, 4
+
 
     ########################################
     # TEST END
