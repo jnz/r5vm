@@ -36,7 +36,7 @@
 #include <assert.h>
 
 #include "r5vm.h"
-#include "src/hires_time.h"
+#include "hires_time.h"
 
 // -------------------------------------------------------------
 
@@ -260,8 +260,6 @@ int main(int argc, char** argv)
     if (memcmp(vm.mem, vmjit.mem, vm.mem_size) != 0)
     {
         printf("Error memory mismatch between interpretor and JIT\n");
-        r5vm_dump_state(&vm);
-        r5vm_dump_state(&vmjit);
     }
 
     // Free memory
