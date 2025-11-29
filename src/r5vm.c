@@ -234,20 +234,24 @@ static bool r5vm_step(r5vm_t* vm)
         break;
     /* _--------------------- System Call ----------------------------_ */
     case (R5VM_OPCODE_SYSTEM):
-        {
-        uint32_t syscall_id = vm->a7;
-        switch (syscall_id) {
-        case 0:
-            retcode = false;
-            break;
-        case 1:
-            putchar(vm->a0 & 0xff);
-            fflush(stdout);
-            break;
-        default:
-            // r5vm_error(vm, "Unknown ECALL", vm->pc-4, syscall_id);
-            retcode = false;
+        if (FUNCT3(inst) == 0) {
+            uint32_t imm12 = (inst >> 20) & 0xFFF;
+            uint32_t syscall_id = vm->a7;
+            if (imm12 == 0) { /* ecall */
+                putchar(vm->a0 & 0xff);
+                fflush(stdout);
+            }
+            else if (imm12 == 1) {  /* ebreak */
+                retcode = false;
+            }
+            else {
+                r5vm_error(vm, "Unknown system call", vm->pc-4, inst);
+                retcode = false;
+            }
         }
+        else {
+            r5vm_error(vm, "Unknown system call", vm->pc - 4, inst);
+            retcode = false;
         }
         break;
     /* _--------------------- FENCE / FENCE.I --------------------------_ */

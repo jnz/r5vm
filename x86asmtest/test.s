@@ -25,8 +25,16 @@ _main:
     # and ecx, 0x1f         # mask with 0x1f
     # shl eax, cl
 
-    mov eax, 0x123456
-    mov [edi + 0x0c], eax
+    # mov eax, [edi + 0xc] # eax = R[rs1]
+    # add eax, 0x11223344  # add IMM_I
+    # and al, 0xfe         # clear bit 0
+    # and eax, 0xFFeeFFee  # mem_mask
+    # add eax, 0x10000000  # += vm->instruction_pointers
+    # jmp eax
+
+    # and eax, 0xFFFFFFFE
+
+    shl eax, 2
 
     ret
 
