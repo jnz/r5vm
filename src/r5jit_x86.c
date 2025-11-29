@@ -57,6 +57,9 @@ static void emit1(r5jitbuf_t* jit, uint8_t v) {
     if (jit->pos < jit->mem_size) {
         jit->mem[ jit->pos++ ] = v;
     }
+    else {
+        jit->error = true;
+    }
 }
 
 static void emit4(r5jitbuf_t* jit, uint32_t v) {
@@ -575,7 +578,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
         break;
     /* _--------------------- System Call ----------------------------_ */
     case (R5VM_OPCODE_SYSTEM):
-        r5jit_emit_epilog(jit);
+        /* TODO: Add system call */
         break;
     /* _--------------------- FENCE / FENCE.I --------------------------_ */
     case (R5VM_OPCODE_FENCE):
@@ -625,6 +628,7 @@ bool r5jit_compile(r5vm_t* vm, r5jitbuf_t* jit)
             break;
         }
     }
+	r5jit_emit_epilog(jit);
 
     return success;
 }
