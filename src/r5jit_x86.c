@@ -110,14 +110,15 @@ void __cdecl r5vm_handle_ecall(r5vm_t* vm)
 // ---- Op Codes --------------------------------------------------------------
 
 static void r5jit_emit_prolog(r5jitbuf_t* b, const r5vm_t* vm) {
-    emit1(b, 0x57); // push edi
-    emit1(b, 0xBF);
-    emit4(b, (uint32_t)vm);
+    emit1(b, 0x57);                // push edi
+    emit1(b, 0x53);                // push ebx
+    emit1(b, 0xBF); emit4(b, (uint32_t)vm);  // mov edi, vm
 }
 
 static void r5jit_emit_epilog(r5jitbuf_t* b) {
-    emit1(b, 0x5F); // pop edi
-    emit1(b, 0xC3); // return
+    emit1(b, 0x5B);   // pop ebx
+    emit1(b, 0x5F);   // pop edi
+    emit1(b, 0xC3);   // ret
 }
 
 static void r5jit_exec(r5vm_t* vm, r5jitbuf_t* jit)
@@ -266,12 +267,27 @@ static void emit_sub(r5jitbuf_t* b, int rd, int rs1, int rs2) {
     emit1(b, OFF_X(rd));
 }
 
+static void emit_beq(const r5vm_t* vm, r5jitbuf_t* b,
+                     int rs1, int rs2, int immb) {
+    // R5VM_B_F3_BEQ:  if (R[rs1] == R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+    int target_pc = (vm->pc-4 + immb) & vm->mem_mask;
+    emit(b, "8b 47"); emit1(b, OFF_X(rs1));  // eax = R[rs1] (mov eax, [edi + rs1*4])
+    emit(b, "8b 5f"); emit1(b, OFF_X(rs2));  // ebx = R[rs2]
+    emit(b, "39 D8"); // cmp eax, ebx
+    emit(b, "75 06"); // jne (conditional jump over next 6 bytes)
+    emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_pc]
+    emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only
+
+    printf("BEQ Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
+        target_pc, (void*)(b->instruction_pointers + target_pc),
+        b->instruction_pointers[target_pc]);
+}
+
 static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
                      int reg1, int reg2, int immb)
 {
     // R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
     int target_pc = (vm->pc-4 + immb) & vm->mem_mask;
-
     emit(b, "8B 47"); emit1(b, OFF_X(reg1)); // eax = rs1 | mov eax, [edi + OFF_X(rs1)] (mit disp8)
     emit(b, "8B 5F"); emit1(b, OFF_X(reg2)); // ebx = rs2 | mov ebx, [edi+off]
     emit(b, "39 D8"); // cmp eax, ebx
@@ -582,10 +598,8 @@ static void emit_jalr(const r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int imm_
 {
     // R[rd] = vm->pc;
     // target_pc = ((R[rs1] + IMM_I(inst)) & ~1U) & vm->mem_mask;
-
     // mov DWORD PTR [edi + OFF_X(rd)], target_pc
     if (rd != 0) { emit(b, "c7 47"); emit1(b, OFF_X(rd)); emit4(b, vm->pc); } // R[rd] = vm->pc
-
     emit(b, "8b 47"); emit1(b, OFF_X(rs1)); // eax = R[rs1] (mov eax, [edi + rs1*4])
     if (imm_i != 0) {
         emit(b, "05");  // eax += imm_i (add eax, imm_i)
@@ -727,7 +741,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
     /* _--------------------- Branch ---------------------------------_ */
     case (R5VM_OPCODE_BRANCH):
         switch (FUNCT3(inst)) {
-        case R5VM_B_F3_BEQ:  if (R[rs1] == R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+        case R5VM_B_F3_BEQ:  emit_beq(vm, jit, rs1, rs2, IMM_B(inst)); break; // if (R[rs1] == R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
         case R5VM_B_F3_BNE:  if (R[rs1] != R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
         case R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
         case R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;

@@ -40,9 +40,19 @@ _main:
     # or eax, 0xffeeffee
     # and eax, 0xffeeffee
 
+    # cmp eax, 0xffeeffee   # (signed compare!)
+    # setl al   # (signed <)
+    # movzx eax, al
+
+    jne done
+
     cmp eax, 0xffeeffee   # (signed compare!)
     setl al   # (signed <)
     movzx eax, al
 
+    push ebx
+    pop ebx
+
+done:
     ret
 
