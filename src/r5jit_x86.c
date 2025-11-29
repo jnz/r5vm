@@ -29,7 +29,8 @@
  */
 
 /*
-   edi points to r5vm_t* vm
+    Important:
+    edi register points to r5vm_t* vm for JIT code
 */
 
 #include <stdlib.h>
@@ -44,8 +45,8 @@
 
 // ---- Defines ---------------------------------------------------------------
 
-#define OFF_PC    (offsetof(r5vm_t, pc)) /* Register offset (bytes) in vm_t */
-#define OFF_X(n)  (offsetof(r5vm_t, regs) + (n)*4) /* Register offset in vm_t */
+#define OFF_PC    (offsetof(r5vm_t, pc)) /* pc offset (bytes) in vm_t */
+#define OFF_X(n)  ((uint8_t)offsetof(r5vm_t, regs) + (n)*4)
 #define OFF_MEM   (offsetof(r5vm_t, mem))
 #define OFF_MASK  (offsetof(r5vm_t, mem_mask))
 
@@ -118,11 +119,11 @@ static void emit_add(r5jitbuf_t* b, int rd, int reg1, int reg2) {
     // Byte encoding: 8B 47 xx (8-bit displacement from edi)
     // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
     emit(b, "8B 47");
-    emit1(b, (uint8_t)OFF_X(reg1)); // register between 0 and 31
+    emit1(b, OFF_X(reg1)); // register between 0 and 31
     emit(b, "03 47");               // add eax, [edi + disp8]
-    emit1(b, (uint8_t)OFF_X(reg2));
+    emit1(b, OFF_X(reg2));
     emit(b, "89 47");               // mov [edi + disp8], eax
-    emit1(b, (uint8_t)OFF_X(rd));
+    emit1(b, OFF_X(rd));
 }
 
 static void emit_addi(r5jitbuf_t* b, int rd, int reg1, int imm) {
@@ -132,11 +133,11 @@ static void emit_addi(r5jitbuf_t* b, int rd, int reg1, int imm) {
     // Byte encoding: 8B 47 xx (8-bit displacement from edi)
     // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
     emit(b, "8B 47");
-    emit1(b, (uint8_t)OFF_X(reg1)); // register between 0 and 31
+    emit1(b, OFF_X(reg1)); // register between 0 and 31
     emit1(b, 0x05);    // add eax, imm32
     emit4(b, imm);
     emit(b, "89 47");  // mov [edi + disp8], eax
-    emit1(b, (uint8_t)OFF_X(rd));
+    emit1(b, OFF_X(rd));
 }
 
 static void emit_sub(r5jitbuf_t* b, int rd, int reg1, int reg2) {
@@ -144,11 +145,11 @@ static void emit_sub(r5jitbuf_t* b, int rd, int reg1, int reg2) {
     // Byte encoding: 8B 47 xx (8-bit displacement from edi)
     // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
     emit(b, "8B 47");
-    emit1(b, (uint8_t)OFF_X(reg1)); // register between 0 and 31
+    emit1(b, OFF_X(reg1)); // register between 0 and 31
     emit(b, "2B 47"); // sub eax, [edi + disp8]
-    emit1(b, (uint8_t)OFF_X(reg2));
+    emit1(b, OFF_X(reg2));
     emit(b, "89 47");   // mov [edi + disp8], eax
-    emit1(b, (uint8_t)OFF_X(rd));
+    emit1(b, OFF_X(rd));
 }
 
 static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
@@ -157,8 +158,8 @@ static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
     // R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
     int target_pc = (vm->pc-4 + immb) & vm->mem_mask;
 
-    emit(b, "8B 47"); emit1(b, (uint8_t)OFF_X(reg1)); // eax = rs1 | mov eax, [edi + OFF_X(rs1)] (mit disp8)
-    emit(b, "8B 5F"); emit1(b, (uint8_t)OFF_X(reg2)); // ebx = rs2 | mov ebx, [edi+off]
+    emit(b, "8B 47"); emit1(b, OFF_X(reg1)); // eax = rs1 | mov eax, [edi + OFF_X(rs1)] (mit disp8)
+    emit(b, "8B 5F"); emit1(b, OFF_X(reg2)); // ebx = rs2 | mov ebx, [edi+off]
     emit(b, "39 D8"); // cmp eax, ebx
     emit(b, "7D 06"); // jge (conditional jump over next 6 bytes)
     emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_index]
@@ -175,8 +176,8 @@ static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
     // R5VM_B_F3_BGE: if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
     int target_pc = (vm->pc - 4 + immb) & vm->mem_mask;
 
-    emit(b, "8B 47"); emit1(b, (uint8_t)OFF_X(reg1)); // eax = rs1
-    emit(b, "8B 5F"); emit1(b, (uint8_t)OFF_X(reg2)); // ebx = rs2
+    emit(b, "8B 47"); emit1(b, OFF_X(reg1)); // eax = rs1
+    emit(b, "8B 5F"); emit1(b, OFF_X(reg2)); // ebx = rs2
     emit(b, "39 D8"); // cmp eax, ebx
     emit(b, "7C 06"); // jl +6 bytes  (if eax < ebx, skip)
     emit(b, "FF 25"); // jmp [instruction_pointers[target_index]]
@@ -189,32 +190,100 @@ static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
 
 static void emit_lw(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
 {
-    /*
-        const uint32_t addr = R[rs1] + IMM_I(inst);
-        const uint8_t b0 = vm->mem[(addr + 0) & vm->mem_mask];
-        const uint8_t b1 = vm->mem[(addr + 1) & vm->mem_mask];
-        const uint8_t b2 = vm->mem[(addr + 2) & vm->mem_mask];
-        const uint8_t b3 = vm->mem[(addr + 3) & vm->mem_mask];
-        R5VM_I_F3_LW:  R[rd] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24); break;
-    */
-
-    // eax = R[rs1] + IMM
+    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
+    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
     emit(b, "8B 47");       // mov eax, [edi + disp8]
-    emit1(b, (uint8_t)OFF_X(rs1));
+    emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
     emit(b, "05");          // add eax, imm32
     emit4(b, immb);
-
-    // ebx = vm->mem
+    emit(b, "25");          // and eax, mem_mask
+    emit4(b, vm->mem_mask); // eax &= mem_mask
     emit(b, "8B 9F");       // mov ebx, [edi + disp32]
-    emit4(b, OFF_MEM);
-    // eax &= mem_mask
-    emit(b, "23 87");       // and eax, [edi + disp32]
-    emit4(b, OFF_MASK);
+    emit4(b, OFF_MEM);      // ebx = vm->mem
     // eax = *(uint32_t*)(ebx + eax)
     emit(b, "8B 04 03");    // mov eax, [ebx + eax]
-    // store into rd
     emit(b, "89 47");       // mov [edi + disp8], eax
-    emit1(b, (uint8_t)OFF_X(rd));
+    emit1(b, OFF_X(rd));    // store into rd
+}
+
+static void emit_lh(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
+{
+    // signed 16-bit load
+    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
+    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
+    emit(b, "8B 47");       // mov eax, [edi + disp8]
+    emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
+    emit(b, "05");          // add eax, imm32
+    emit4(b, immb);
+    emit(b, "25");          // and eax, mem_mask
+    emit4(b, vm->mem_mask); // eax &= mem_mask
+    emit(b, "8B 9F");       // mov ebx, [edi + disp32]
+    emit4(b, OFF_MEM);      // ebx = vm->mem
+    // ax = *(int16_t*)(ebx + eax)
+    emit(b, "66 8b 04 03"); // mov ax, [ebx + eax]
+    emit(b, "98");          // cwde (sign extend AX to EAX)
+    emit(b, "89 47");       // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));    // store into rd
+}
+
+static void emit_lb(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
+{
+    // signed 8-bit load
+    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
+    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
+    emit(b, "8B 47");       // mov eax, [edi + disp8]
+    emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
+    emit(b, "05");          // add eax, imm32
+    emit4(b, immb);
+    emit(b, "25");          // and eax, mem_mask
+    emit4(b, vm->mem_mask); // eax &= mem_mask
+    emit(b, "8B 9F");       // mov ebx, [edi + disp32]
+    emit4(b, OFF_MEM);      // ebx = vm->mem
+    // al = *(int8_t*)(ebx + eax)
+    emit(b, "8a 04 03");    // mov al, [ebx + eax]
+    emit(b, "98");          // cwde (sign extend AL to EAX)
+    emit(b, "89 47");       // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));    // store into rd
+}
+
+static void emit_lhu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
+{
+    // unsigned 16-bit load
+    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
+    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
+    emit(b, "8B 47");       // mov eax, [edi + disp8]
+    emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
+    emit(b, "05");          // add eax, imm32
+    emit4(b, immb);
+    emit(b, "25");          // and eax, mem_mask
+    emit4(b, vm->mem_mask); // eax &= mem_mask
+    emit(b, "8B 9F");       // mov ebx, [edi + disp32]
+    emit4(b, OFF_MEM);      // ebx = vm->mem
+    // ax = *(uint16_t*)(ebx + eax)
+    emit(b, "66 8b 04 03"); // mov ax, [ebx + eax]
+    emit(b, "25"); emit4(b, 0xffff); // and eax, 0xffff
+    emit(b, "89 47");       // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));    // store into rd
+}
+
+static void emit_lbu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
+{
+    // unsigned 8-bit load
+    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
+    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
+    emit(b, "8B 47");       // mov eax, [edi + disp8]
+    emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
+    emit(b, "05");          // add eax, imm32
+    emit4(b, immb);
+    emit(b, "25");          // and eax, mem_mask
+    emit4(b, vm->mem_mask); // eax &= mem_mask
+    emit(b, "8B 9F");       // mov ebx, [edi + disp32]
+    emit4(b, OFF_MEM);      // ebx = vm->mem
+    // al = *(uint8_t*)(ebx + eax)
+    emit(b, "8a 04 03");    // mov al, [ebx + eax]
+    emit(b, "25"); emit4(b, 0xff); // and eax, 0xff
+    emit(b, "89 47");       // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));    // store into rd
 }
 
 static void emit_auipc(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
@@ -224,7 +293,7 @@ static void emit_auipc(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
     emit(b, "B8");    // mov eax, imm32
 	emit4(b, target_pc);
     emit(b, "89 47");   // mov [edi + disp8], eax
-    emit1(b, (uint8_t)OFF_X(rd));
+    emit1(b, OFF_X(rd));
 }
 
 static void emit_sw4(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
@@ -237,6 +306,30 @@ static void emit_sw4(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
     emit(b, "03 87"); emit4(b, OFF_MEM);    // add eax, [edi + OFF_MEM]
     emit(b, "8B 5F"); emit1(b, OFF_X(rs2)); // mov ebx, [edi + OFF_X(rs2)]
     emit(b, "89 18");                       // mov [eax], ebx
+}
+
+static void emit_sw2(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
+{
+    // addr = (R[rs1] + IMM_S) & vm->mem_mask;
+    // *(uint16_t*)(&vm->mem[addr]) = R[rs2] 0xFFFF;
+	emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
+	emit(b, "05"); emit4(b, imm_s);         // add eax, imm32
+    emit(b, "25"); emit4(b, vm->mem_mask);  // and eax, vm->mem_mask
+    emit(b, "03 87"); emit4(b, OFF_MEM);    // add eax, [edi + OFF_MEM]
+    emit(b, "66 8b 5f"); emit1(b, OFF_X(rs2)); // mov bx, [edi + OFF_X(rs2)]
+    emit(b, "66 89 18");                    // mov [eax], bx
+}
+
+static void emit_sw1(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
+{
+    // addr = (R[rs1] + IMM_S) & vm->mem_mask;
+    // *(uint8_t*)(&vm->mem[addr]) = R[rs2] 0xFF;
+	emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
+	emit(b, "05"); emit4(b, imm_s);         // add eax, imm32
+    emit(b, "25"); emit4(b, vm->mem_mask);  // and eax, vm->mem_mask
+    emit(b, "03 87"); emit4(b, OFF_MEM);    // add eax, [edi + OFF_MEM]
+    emit(b, "8a 5f"); emit1(b, OFF_X(rs2)); // mov bl, [edi + OFF_X(rs2)]
+    emit(b, "88 18");                       // mov [eax], bl
 }
 
 static void emit_xor(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
@@ -402,26 +495,12 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
     /* _--------------------- Load -----------------------------------_ */
     case (R5VM_OPCODE_LW):
         {
-        const uint32_t addr = R[rs1] + IMM_I(inst);
-#ifdef R5VM_DEBUG
-        if (addr > vm->mem_size - 4)
-        {
-            r5vm_error(vm, "Memory access out of bounds", vm->pc-4, inst);
-            retcode = false;
-            break;
-        }
-#endif
-        const uint8_t b0 = vm->mem[(addr + 0) & vm->mem_mask];
-        const uint8_t b1 = vm->mem[(addr + 1) & vm->mem_mask];
-        const uint8_t b2 = vm->mem[(addr + 2) & vm->mem_mask];
-        const uint8_t b3 = vm->mem[(addr + 3) & vm->mem_mask];
-
         switch (FUNCT3(inst)) {
-        case R5VM_I_F3_LB:  R[rd] = (int8_t)b0; break;
-        case R5VM_I_F3_LH:  R[rd] = (int16_t)(b0 | (b1 << 8)); break;
+        case R5VM_I_F3_LB:  emit_lb(vm, jit, rd, rs1, IMM_I(inst)); break; // R[rd] = (int8_t)b0; break;
+        case R5VM_I_F3_LH:  emit_lh(vm, jit, rd, rs1, IMM_I(inst)); break; // R[rd] = (int16_t)(b0 | (b1 << 8)); break;
         case R5VM_I_F3_LW:  emit_lw(vm, jit, rd, rs1, IMM_I(inst)); break; // R[rd] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24); break;
-        case R5VM_I_F3_LBU: R[rd] = b0; break;
-        case R5VM_I_F3_LHU: R[rd] = b0 | (b1 << 8); break;
+        case R5VM_I_F3_LBU: emit_lbu(vm, jit, rd, rs1, IMM_I(inst)); break; // R[rd] = b0; break;
+        case R5VM_I_F3_LHU: emit_lhu(vm, jit, rd, rs1, IMM_I(inst)); break; // R[rd] = b0 | (b1 << 8); break;
 #ifdef R5VM_DEBUG
         default:
             r5vm_error(vm, "Unknown Load funct3", vm->pc-4, inst);
@@ -433,27 +512,13 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
     /* _--------------------- Store ----------------------------------_ */
     case (R5VM_OPCODE_SW):
         {
-        const uint32_t addr = R[rs1] + IMM_S(inst);
-#ifdef R5VM_DEBUG
-        if (addr > vm->mem_size - 4) {
-            r5vm_error(vm, "Memory access out of bounds", vm->pc-4, inst);
-            retcode = false;
-            break;
-        }
-#endif
-        switch (FUNCT3(inst)) {
-        case R5VM_S_F3_SW: // 32-bit store (4 bytes)
-            emit_sw4(vm, jit, rs1, rs2, IMM_S(inst)); break;
-            // vm->mem[(addr + 3) & vm->mem_mask] = (R[rs2] >> 24) & 0xFF;
-            // vm->mem[(addr + 2) & vm->mem_mask] = (R[rs2] >> 16) & 0xFF;
-            // vm->mem[(addr + 1) & vm->mem_mask] = (R[rs2] >>  8) & 0xFF;
-            // vm->mem[(addr + 0) & vm->mem_mask] = (R[rs2] >>  0) & 0xFF;
-        case R5VM_S_F3_SH: // 16-bit store (2 bytes)
-            vm->mem[(addr + 1) & vm->mem_mask] = (R[rs2] >> 8) & 0xFF;
-            /* fall through */
-        case R5VM_S_F3_SB: // 8-bit store (1 byte)
-            vm->mem[(addr + 0) & vm->mem_mask] = (R[rs2] >> 0) & 0xFF;
-            break;
+        switch (FUNCT3(inst)) { // vm->mem[addr & vm->mem_mask] = R[rs2]
+        case R5VM_S_F3_SW:
+            emit_sw4(vm, jit, rs1, rs2, IMM_S(inst)); break; // 32-bit store (4 bytes)
+        case R5VM_S_F3_SH:
+            emit_sw2(vm, jit, rs1, rs2, IMM_S(inst)); break; // 16-bit store (2 bytes)
+        case R5VM_S_F3_SB:
+            emit_sw1(vm, jit, rs1, rs2, IMM_S(inst)); break; // 8-bit store (1 byte)
 #ifdef R5VM_DEBUG
         default:
             r5vm_error(vm, "Illegal store width", vm->pc-4, inst);

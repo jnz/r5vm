@@ -21,9 +21,12 @@ _main:
     # and eax, [edi + 0x0d]
     # mov [edi + 0x0c], eax
 
-    mov ecx, [edi + 0x0c] # ebx = rs2
-    and ecx, 0x1f         # mask with 0x1f
-    shl eax, cl
+    # mov ecx, [edi + 0x0c] # ebx = rs2
+    # and ecx, 0x1f         # mask with 0x1f
+    # shl eax, cl
+
+    mov al, [ebx + eax]
+    and eax, 0xff
 
     ret
 
