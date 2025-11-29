@@ -334,6 +334,60 @@ jal_target:
     sw x7, 0(x10)
     addi x10, x10, 4
 
+    ########################################
+    # Test 22: BEQ
+    ########################################
+
+    # Case 1: branch NOT taken
+    # 1 != 2 -> fallthrough -> result = 111
+
+    addi x5, x0, 1
+    addi x6, x0, 2
+
+    beq  x5, x6, beq_taken_1
+    addi x7, x0, 111      # fallthrough path
+    j    beq_done_1
+
+beq_taken_1:
+    addi x7, x0, 999      # should NOT be executed
+
+beq_done_1:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 2: branch TAKEN (forward jump)
+    # 5 == 5 -> branch -> result = 222
+
+    addi x5, x0, 5
+    addi x6, x0, 5
+
+    beq  x5, x6, beq_taken_2
+    addi x7, x0, 111      # should NOT run
+    j    beq_done_2
+
+beq_taken_2:
+    addi x7, x0, 222      # expected
+
+beq_done_2:
+    sw   x7, 0(x10)
+    addi x10, x10, 4
+
+
+    # Case 3: branch TAKEN (backward loop)
+    # tests negative immediate and loop logic
+
+    addi x5, x0, 0       # counter
+    addi x6, x0, 3       # limit
+
+beq_loop:
+    addi x5, x5, 1
+    beq  x5, x6, beq_exit_loop
+    j    beq_loop
+
+beq_exit_loop:
+    sw   x5, 0(x10)      # expected: 3
+    addi x10, x10, 4
 
     ########################################
     # TEST END
