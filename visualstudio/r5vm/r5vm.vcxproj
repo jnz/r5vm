@@ -25,9 +25,9 @@
     <ClCompile Include="..\..\src\r5vm.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\r5vm.h" />
     <ClInclude Include="..\..\src\hires_time.h" />
     <ClInclude Include="..\..\src\r5jit.h" />
+    <ClInclude Include="..\..\src\r5vm.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
