@@ -297,6 +297,15 @@ static void emit_auipc(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
     emit1(b, OFF_X(rd));
 }
 
+static void emit_lui(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
+{
+	// R[rd] = IMM_U(inst);
+    emit(b, "b8"); // mov eax, IMM_U
+    emit4(b, immu);
+    emit(b, "89 47");   // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));
+}
+
 static void emit_sw4(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
 {
     // addr = (R[rs1] + IMM_S) & vm->mem_mask;
@@ -491,7 +500,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
         break;
     /* _--------------------- LUI -------------------------------------_ */
     case (R5VM_OPCODE_LUI):
-        R[rd] = IMM_U(inst);
+        emit_lui(vm, jit, rd, IMM_U(inst)); // R[rd] = IMM_U(inst);
         break;
     /* _--------------------- Load -----------------------------------_ */
     case (R5VM_OPCODE_LW):
@@ -566,22 +575,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
         break;
     /* _--------------------- System Call ----------------------------_ */
     case (R5VM_OPCODE_SYSTEM):
-        {
-        uint32_t syscall_id = vm->a7;
-        switch (syscall_id) {
-        case 0:
-            r5jit_emit_epilog(jit);
-            // retcode = false;
-            break;
-        case 1:
-            // putchar(vm->a0 & 0xff);
-            // fflush(stdout);
-            break;
-        default:
-            r5vm_error(vm, "Unknown ECALL", vm->pc-4, syscall_id);
-            retcode = false;
-        }
-        }
+        r5jit_emit_epilog(jit);
         break;
     /* _--------------------- FENCE / FENCE.I --------------------------_ */
     case (R5VM_OPCODE_FENCE):

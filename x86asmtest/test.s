@@ -25,9 +25,8 @@ _main:
     # and ecx, 0x1f         # mask with 0x1f
     # shl eax, cl
 
-    mov al, [ebx + eax]
-    cbw
-
+    mov eax, 0x123456
+    mov [edi + 0x0c], eax
 
     ret
 
