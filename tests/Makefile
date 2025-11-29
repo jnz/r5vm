@@ -23,7 +23,7 @@ TEST_ELFS    = $(TEST_SOURCES:.s=.elf)
 TEST_LISTS   = $(TEST_SOURCES:.s=.list)
 
 # VM source (one level up)
-VM_DIR = ..
+VM_DIR = ../src
 VM_SRC = $(VM_DIR)/r5vm.c
 VM_HDR = $(VM_DIR)/r5vm.h
 

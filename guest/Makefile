@@ -63,7 +63,7 @@ $(info [r5vm] arch/abi:      $(ARCH)/$(ABI))
 -include config.mk
 
 # --- Build rules --------------------------------------------------
-all: vm.bin
+all: vm.r5m
 
 %.o: %.s
 	$(AS) $(ASFLAGS) -c -o $@ $<
@@ -77,10 +77,10 @@ vm.elf: $(OBJ) r5vm.ld
 	@echo "Section sizes (bytes):"
 	@$(SIZE) -A -d $@
 
-vm.bin: vm.elf
-	$(OBJCOPY) -O binary $< $@
-	$(OBJDUMP) -D $< > vm.list
+vm.r5m: vm.elf
+	$(OBJDUMP) -D vm.elf > vm.list
+	python ../r5asm/r5asm.py --verbose vm.elf vm.r5m
 
 clean:
-	rm -f *.o *.elf *.bin *.list
+	rm -f *.o *.elf *.r5m *.list
 
