@@ -33,8 +33,16 @@ _main:
     # jmp eax
 
     # and eax, 0xFFFFFFFE
+    # shl eax, 2
 
-    shl eax, 2
+    # mov eax, [edi + 0xc]
+    # xor eax, 0xffeeffee
+    # or eax, 0xffeeffee
+    # and eax, 0xffeeffee
+
+    cmp eax, 0xffeeffee   # (signed compare!)
+    setl al   # (signed <)
+    movzx eax, al
 
     ret
 

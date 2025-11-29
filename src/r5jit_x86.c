@@ -151,19 +151,117 @@ static void emit_addi(r5jitbuf_t* b, int rd, int reg1, int imm) {
         emit1(b, 0x05);    // add eax, imm32
         emit4(b, imm);
     }
-    emit(b, "89 47");  // mov [edi + disp8], eax
+    emit(b, "89 47");      // mov [edi + disp8], eax
     emit1(b, OFF_X(rd));
 }
 
-static void emit_sub(r5jitbuf_t* b, int rd, int reg1, int reg2) {
+static void emit_xori(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    if (rd == 0) { return; }
+    // R5VM_I_F3_XORI:  R[rd] = R[rs1] ^ IMM_I(inst); break;
+    emit(b, "8B 47");     // mov eax, reg1
+    emit1(b, OFF_X(rs1)); // register between 0 and 31
+    emit(b, "35");        // xor eax, IMM
+    emit4(b, imm);
+    emit(b, "89 47");     // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));
+}
+
+static void emit_ori(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    if (rd == 0) { return; }
+    // R5VM_I_F3_ORI:   R[rd] = R[rs1] | IMM_I(inst); break;
+    emit(b, "8B 47");     // mov eax, reg1
+    emit1(b, OFF_X(rs1)); // register between 0 and 31
+    emit(b, "0d");        // or eax, IMM
+    emit4(b, imm);
+    emit(b, "89 47");     // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));
+}
+
+static void emit_andi(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    if (rd == 0) { return; }
+    // R5VM_I_F3_ANDI:  R[rd] = R[rs1] & IMM_I(inst); break;
+    emit(b, "8B 47");     // mov eax, reg1
+    emit1(b, OFF_X(rs1)); // register between 0 and 31
+    emit(b, "25");        // and eax, IMM
+    emit4(b, imm);
+    emit(b, "89 47");     // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));
+}
+
+static void emit_slti(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    if (rd == 0) { return; }
+    // R5VM_I_F3_SLTI:  R[rd] = ((int32_t)R[rs1] < IMM_I(inst)); break;
+    emit(b, "8B 47");     // eax = R[rs1]
+    emit1(b, OFF_X(rs1));
+    emit(b, "3d");        // cmp eax, imm32 (signed compare)
+    emit4(b, imm);
+    emit(b, "0F 9C C0");  // setl al   (signed <)
+    emit(b, "0F B6 C0");  // movzx eax, al
+    emit(b, "89 47");     // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));
+}
+
+static void emit_sltiu(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    if (rd == 0) { return; }
+    // R5VM_I_F3_SLTIU: R[rd] = (R[rs1] < (uint32_t)IMM_I(inst)); break;
+    emit(b, "8B 47");     // eax = R[rs1]
+    emit1(b, OFF_X(rs1));
+    emit(b, "3D");        // Compare unsigned: cmp eax, imm
+    emit4(b, (uint32_t)imm);
+    emit(b, "0F 92 C0");  // setb al   (unsigned <)
+    emit(b, "0F B6 C0");  // movzx eax, al
+    emit(b, "89 47");     // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));
+}
+
+static void emit_slli(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    if (rd == 0) { return; }
+    // R[rd] = R[rs1] << (IMM_I(inst) & 0x1F);
+    emit(b, "8B 47");     // eax = R[rs1]
+    emit1(b, OFF_X(rs1));
+    if ((imm & 0x1f) != 0) {
+        emit(b, "C1 E0"); // shl eax, imm & 0x1f
+        emit1(b, imm & 0x1f);
+    }
+    emit(b, "89 47");     // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));
+}
+
+static void emit_srli(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    if (rd == 0) { return; }
+    // R[rd] = R[rs1] >> (IMM_I(inst) & 0x1F);
+    emit(b, "8B 47");     // eax = R[rs1]
+    emit1(b, OFF_X(rs1));
+    if ((imm & 0x1f) != 0) {
+        emit(b, "C1 E8"); // shr eax, shamt (logical)
+        emit1(b, imm & 0x1f); // shift amount
+    }
+    emit(b, "89 47");     // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));
+}
+
+static void emit_srai(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    if (rd == 0) { return; }
+    // R[rd] = ((int32_t)R[rs1]) >> (IMM_I(inst) & 0x1F);
+    emit(b, "8B 47");     // eax = R[rs1]
+    emit1(b, OFF_X(rs1));
+    if ((imm & 0x1f) != 0) {
+        emit(b, "C1 F8"); // sar eax, shamt (arith signed)
+        emit1(b, imm & 0x1f); // shift amount
+    }
+    emit(b, "89 47");     // mov [edi + disp8], eax
+    emit1(b, OFF_X(rd));
+}
+
+static void emit_sub(r5jitbuf_t* b, int rd, int rs1, int rs2) {
     if (rd == 0) { return; }
     // mov eax, [edi + disp8]
     // Byte encoding: 8B 47 xx (8-bit displacement from edi)
     // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
     emit(b, "8B 47");
-    emit1(b, OFF_X(reg1)); // register between 0 and 31
+    emit1(b, OFF_X(rs1)); // register between 0 and 31
     emit(b, "2B 47"); // sub eax, [edi + disp8]
-    emit1(b, OFF_X(reg2));
+    emit1(b, OFF_X(rs2));
     emit(b, "89 47");   // mov [edi + disp8], eax
     emit1(b, OFF_X(rd));
 }
@@ -560,21 +658,21 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
     /* _--------------------- I-Type instuctions ---------------------_ */
     case (R5VM_OPCODE_I_TYPE):
         switch (FUNCT3(inst)) {
-        case R5VM_I_F3_ADDI:  emit_addi(jit, rd, rs1, IMM_I(inst)); break; /* R[rd] = R[rs1] + IMM_I(inst); */
-        case R5VM_I_F3_XORI:  R[rd] = R[rs1] ^ IMM_I(inst); break;
-        case R5VM_I_F3_ORI:   R[rd] = R[rs1] | IMM_I(inst); break;
-        case R5VM_I_F3_ANDI:  R[rd] = R[rs1] & IMM_I(inst); break;
-        case R5VM_I_F3_SLTI:  R[rd] = ((int32_t)R[rs1] < IMM_I(inst)); break;
-        case R5VM_I_F3_SLTIU: R[rd] = (R[rs1] < (uint32_t)IMM_I(inst)); break;
+        case R5VM_I_F3_ADDI:  emit_addi (jit, rd, rs1, IMM_I(inst)); break; // R[rd] = R[rs1] + IMM_I(inst); break;
+        case R5VM_I_F3_XORI:  emit_xori (jit, rd, rs1, IMM_I(inst)); break; // R[rd] = R[rs1] ^ IMM_I(inst); break;
+        case R5VM_I_F3_ORI:   emit_ori  (jit, rd, rs1, IMM_I(inst)); break; // R[rd] = R[rs1] | IMM_I(inst); break;
+        case R5VM_I_F3_ANDI:  emit_andi (jit, rd, rs1, IMM_I(inst)); break; // R[rd] = R[rs1] & IMM_I(inst); break;
+        case R5VM_I_F3_SLTI:  emit_slti (jit, rd, rs1, IMM_I(inst)); break; // R[rd] = ((int32_t)R[rs1] < IMM_I(inst)); break;
+        case R5VM_I_F3_SLTIU: emit_sltiu(jit, rd, rs1, IMM_I(inst)); break; // R[rd] = (R[rs1] < (uint32_t)IMM_I(inst)); break;
         case R5VM_I_F3_SLLI:
             if (FUNCT7(inst) == R5VM_I_F7_SLLI)
-                R[rd] = R[rs1] << (IMM_I(inst) & 0x1F);
+                emit_slli(jit, rd, rs1, IMM_I(inst)); break; // R[rd] = R[rs1] << (IMM_I(inst) & 0x1F);
             break;
         case R5VM_I_F3_SRLI_SRAI:
             if (FUNCT7(inst) == R5VM_I_F7_SRLI)
-                R[rd] = R[rs1] >> (IMM_I(inst) & 0x1F);
+                emit_srli(jit, rd, rs1, IMM_I(inst)); // R[rd] = R[rs1] >> (IMM_I(inst) & 0x1F);
             else if (FUNCT7(inst) == R5VM_I_F7_SRAI)
-                R[rd] = ((int32_t)R[rs1]) >> (IMM_I(inst) & 0x1F);
+                emit_srai(jit, rd, rs1, IMM_I(inst)); // R[rd] = ((int32_t)R[rs1]) >> (IMM_I(inst) & 0x1F);
             break;
 #ifdef R5VM_DEBUG
         default:
