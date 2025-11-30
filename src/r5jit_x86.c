@@ -30,7 +30,9 @@
 
 /*
     Important:
-    edi register points to r5vm_t* vm for JIT code
+    - edi register points to r5vm_t* vm for JIT code.
+    - Don't modify edi while JIT code is running.
+    - All registers are pulled from memory and written back all the time.
 */
 
 #include <stdlib.h>
@@ -52,6 +54,8 @@
 
 // ---- x86 Emit --------------------------------------------------------------
 
+/** Emit one raw byte into the JIT buffer.
+ * Aborts on overflow via jit->error.  */
 static void emit1(r5jitbuf_t* jit, uint8_t v) {
     assert(jit->pos < jit->mem_size);
     if (jit->pos < jit->mem_size) {
@@ -62,6 +66,7 @@ static void emit1(r5jitbuf_t* jit, uint8_t v) {
     }
 }
 
+/** Emit a 32-bit value (little-endian) into the JIT buffer.  */
 static void emit4(r5jitbuf_t* jit, uint32_t v) {
     emit1(jit, (v >>  0) & 0xff );
     emit1(jit, (v >>  8) & 0xff );
@@ -69,6 +74,8 @@ static void emit4(r5jitbuf_t* jit, uint32_t v) {
     emit1(jit, (v >> 24) & 0xff );
 }
 
+/** Convert a hexadecimal ASCII character to its 4-bit value.
+ * Asserts on invalid input.  */
 static uint8_t hex(uint8_t c) {
     if ( c >= 'a' && c <= 'f' ) {
         return 10 + c - 'a';
@@ -83,6 +90,8 @@ static uint8_t hex(uint8_t c) {
     return 0;
 }
 
+/** Emit bytes encoded as hex-pairs (e.g. "8B 47 10").
+ * Stops at null terminator.  */
 static void emit(r5jitbuf_t* jit, const char *string) {
     int c1, c2;
     while (true) {
@@ -95,6 +104,7 @@ static void emit(r5jitbuf_t* jit, const char *string) {
     }
 }
 
+/** Compute x86 call-relative displacement to a target address.  */
 static uint32_t calc_rel32(r5jitbuf_t* b, void* target)
 {
     uint8_t* next = &b->mem[b->pos] + 4;  // position after imm32
@@ -108,20 +118,24 @@ void __cdecl r5vm_handle_ecall(r5vm_t* vm) /* emit_ecall is using a cdecl call *
     }
 }
 
-// ---- Op Codes --------------------------------------------------------------
+// ---- Run JIT code ----------------------------------------------------------
 
+/** Emit the x86 function prolog for the JIT entry point.
+ * Sets EDI to the VM pointer. */
 static void r5jit_emit_prolog(r5jitbuf_t* b, const r5vm_t* vm) {
     emit1(b, 0x57);                // push edi
     emit1(b, 0x53);                // push ebx
     emit1(b, 0xBF); emit4(b, (uint32_t)vm);  // mov edi, vm
 }
 
+/** Emit the x86 function epilog restoring registers and returning to caller. */
 static void r5jit_emit_epilog(r5jitbuf_t* b) {
     emit1(b, 0x5B);   // pop ebx
     emit1(b, 0x5F);   // pop edi
     emit1(b, 0xC3);   // ret
 }
 
+/** Jump into the JIT-compiled code and execute it. */
 static void r5jit_exec(r5vm_t* vm, r5jitbuf_t* jit)
 {
     (void)vm;
@@ -129,12 +143,11 @@ static void r5jit_exec(r5vm_t* vm, r5jitbuf_t* jit)
     func();
 }
 
+// ---- Op Codes --------------------------------------------------------------
 static void emit_add(r5jitbuf_t* b, int rd, int reg1, int reg2) {
+    // R[rd] = R[rs1] + R[rs2]
     if (rd == 0) { return; }
-    // mov eax, [edi + disp8]
-    // Byte encoding: 8B 47 xx (8-bit displacement from edi)
-    // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
-    emit(b, "8B 47");
+    emit(b, "8B 47");      // mov eax, [edi + disp8]
     emit1(b, OFF_X(reg1)); // register between 0 and 31
     emit(b, "03 47");      // add eax, [edi + disp8]
     emit1(b, OFF_X(reg2));
@@ -143,11 +156,9 @@ static void emit_add(r5jitbuf_t* b, int rd, int reg1, int reg2) {
 }
 
 static void emit_addi(r5jitbuf_t* b, int rd, int reg1, int imm) {
+    // R[rd] = R[rs1] + IMM_I(inst);
     if (rd == 0) { return; }
-    // mov eax, [edi + disp8]
-    // Byte encoding: 8B 47 xx (8-bit displacement from edi)
-    // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
-    emit(b, "8B 47");
+    emit(b, "8B 47");      // mov eax, [edi + disp8]
     emit1(b, OFF_X(reg1)); // register between 0 and 31
     if (imm != 0) {
         emit1(b, 0x05);    // add eax, imm32
@@ -158,8 +169,8 @@ static void emit_addi(r5jitbuf_t* b, int rd, int reg1, int imm) {
 }
 
 static void emit_xori(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    // R5VM_I_F3_XORI: R[rd] = R[rs1] ^ IMM_I(inst);
     if (rd == 0) { return; }
-    // R5VM_I_F3_XORI:  R[rd] = R[rs1] ^ IMM_I(inst); break;
     emit(b, "8B 47");     // mov eax, reg1
     emit1(b, OFF_X(rs1)); // register between 0 and 31
     emit(b, "35");        // xor eax, IMM
@@ -169,8 +180,8 @@ static void emit_xori(r5jitbuf_t* b, int rd, int rs1, int imm) {
 }
 
 static void emit_ori(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    // R5VM_I_F3_ORI: R[rd] = R[rs1] | IMM_I(inst);
     if (rd == 0) { return; }
-    // R5VM_I_F3_ORI:   R[rd] = R[rs1] | IMM_I(inst); break;
     emit(b, "8B 47");     // mov eax, reg1
     emit1(b, OFF_X(rs1)); // register between 0 and 31
     emit(b, "0d");        // or eax, IMM
@@ -180,8 +191,8 @@ static void emit_ori(r5jitbuf_t* b, int rd, int rs1, int imm) {
 }
 
 static void emit_andi(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    // R5VM_I_F3_ANDI:  R[rd] = R[rs1] & IMM_I(inst);
     if (rd == 0) { return; }
-    // R5VM_I_F3_ANDI:  R[rd] = R[rs1] & IMM_I(inst); break;
     emit(b, "8B 47");     // mov eax, reg1
     emit1(b, OFF_X(rs1)); // register between 0 and 31
     emit(b, "25");        // and eax, IMM
@@ -191,8 +202,8 @@ static void emit_andi(r5jitbuf_t* b, int rd, int rs1, int imm) {
 }
 
 static void emit_slti(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    // R5VM_I_F3_SLTI:  R[rd] = ((int32_t)R[rs1] < IMM_I(inst));
     if (rd == 0) { return; }
-    // R5VM_I_F3_SLTI:  R[rd] = ((int32_t)R[rs1] < IMM_I(inst)); break;
     emit(b, "8B 47");     // eax = R[rs1]
     emit1(b, OFF_X(rs1));
     emit(b, "3d");        // cmp eax, imm32 (signed compare)
@@ -204,8 +215,8 @@ static void emit_slti(r5jitbuf_t* b, int rd, int rs1, int imm) {
 }
 
 static void emit_sltiu(r5jitbuf_t* b, int rd, int rs1, int imm) {
+    // R5VM_I_F3_SLTIU: R[rd] = (R[rs1] < (uint32_t)IMM_I(inst));
     if (rd == 0) { return; }
-    // R5VM_I_F3_SLTIU: R[rd] = (R[rs1] < (uint32_t)IMM_I(inst)); break;
     emit(b, "8B 47");     // eax = R[rs1]
     emit1(b, OFF_X(rs1));
     emit(b, "3D");        // Compare unsigned: cmp eax, imm
@@ -217,8 +228,8 @@ static void emit_sltiu(r5jitbuf_t* b, int rd, int rs1, int imm) {
 }
 
 static void emit_slli(r5jitbuf_t* b, int rd, int rs1, int imm) {
-    if (rd == 0) { return; }
     // R[rd] = R[rs1] << (IMM_I(inst) & 0x1F);
+    if (rd == 0) { return; }
     emit(b, "8B 47");     // eax = R[rs1]
     emit1(b, OFF_X(rs1));
     if ((imm & 0x1f) != 0) {
@@ -230,8 +241,8 @@ static void emit_slli(r5jitbuf_t* b, int rd, int rs1, int imm) {
 }
 
 static void emit_srli(r5jitbuf_t* b, int rd, int rs1, int imm) {
-    if (rd == 0) { return; }
     // R[rd] = R[rs1] >> (IMM_I(inst) & 0x1F);
+    if (rd == 0) { return; }
     emit(b, "8B 47");     // eax = R[rs1]
     emit1(b, OFF_X(rs1));
     if ((imm & 0x1f) != 0) {
@@ -243,8 +254,8 @@ static void emit_srli(r5jitbuf_t* b, int rd, int rs1, int imm) {
 }
 
 static void emit_srai(r5jitbuf_t* b, int rd, int rs1, int imm) {
-    if (rd == 0) { return; }
     // R[rd] = ((int32_t)R[rs1]) >> (IMM_I(inst) & 0x1F);
+    if (rd == 0) { return; }
     emit(b, "8B 47");     // eax = R[rs1]
     emit1(b, OFF_X(rs1));
     if ((imm & 0x1f) != 0) {
@@ -256,21 +267,19 @@ static void emit_srai(r5jitbuf_t* b, int rd, int rs1, int imm) {
 }
 
 static void emit_sub(r5jitbuf_t* b, int rd, int rs1, int rs2) {
+    // R[rd] = R[rs1] - R[rs2];
     if (rd == 0) { return; }
-    // mov eax, [edi + disp8]
-    // Byte encoding: 8B 47 xx (8-bit displacement from edi)
-    // 8B: MOV (32bit), ModRM: 0x47 mod=01 (disp8), reg=000 (EAX), rm=111 (EDI)
-    emit(b, "8B 47");
+    emit(b, "8B 47");     // mov eax, R[rs1]
     emit1(b, OFF_X(rs1)); // register between 0 and 31
-    emit(b, "2B 47"); // sub eax, [edi + disp8]
+    emit(b, "2B 47");     // sub eax, [edi + disp8]
     emit1(b, OFF_X(rs2));
-    emit(b, "89 47");   // mov [edi + disp8], eax
+    emit(b, "89 47");     // mov [edi + disp8], eax
     emit1(b, OFF_X(rd));
 }
 
 static void emit_beq(const r5vm_t* vm, r5jitbuf_t* b,
                      int rs1, int rs2, int immb) {
-    // R5VM_B_F3_BEQ:  if (R[rs1] == R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+    // R5VM_B_F3_BEQ: if (R[rs1] == R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask);
     int target_pc = (vm->pc-4 + immb) & vm->mem_mask;
     emit(b, "8b 47"); emit1(b, OFF_X(rs1));  // eax = R[rs1] (mov eax, [edi + rs1*4])
     emit(b, "8b 5f"); emit1(b, OFF_X(rs2));  // ebx = R[rs2]
@@ -278,18 +287,12 @@ static void emit_beq(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "75 06"); // jne (conditional jump over next 6 bytes)
     emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_pc]
     emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only
-
-    /* Debug Printf
-    printf("BEQ Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
-        target_pc, (void*)(b->instruction_pointers + target_pc),
-        b->instruction_pointers[target_pc]);
-    */
 }
 
 static void emit_bne(const r5vm_t* vm, r5jitbuf_t* b,
                      int rs1, int rs2, int immb)
 {
-    // R5VM_B_F3_BNE:  // if (R[rs1] != R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+    // R5VM_B_F3_BNE: if (R[rs1] != R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask);
     int target_pc = (vm->pc - 4 + immb) & vm->mem_mask;
     emit(b, "8b 47"); emit1(b, OFF_X(rs1));  // eax = R[rs1] (mov eax, [edi + rs1*4])
     emit(b, "8b 5f"); emit1(b, OFF_X(rs2));  // ebx = R[rs2]
@@ -302,7 +305,7 @@ static void emit_bne(const r5vm_t* vm, r5jitbuf_t* b,
 static void emit_bltu(const r5vm_t* vm, r5jitbuf_t* b,
                       int rs1, int rs2, int immb)
 {
-    // R5VM_B_F3_BLTU: // if (R[rs1] <  R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+    // R5VM_B_F3_BLTU: if (R[rs1] <  R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask);
     int target_pc = (vm->pc - 4 + immb) & vm->mem_mask;
     emit(b, "8b 47"); emit1(b, OFF_X(rs1));  // eax = R[rs1] (mov eax, [edi + rs1*4])
     emit(b, "8b 5f"); emit1(b, OFF_X(rs2));  // ebx = R[rs2]
@@ -315,7 +318,7 @@ static void emit_bltu(const r5vm_t* vm, r5jitbuf_t* b,
 static void emit_bgeu(const r5vm_t* vm, r5jitbuf_t* b,
                       int rs1, int rs2, int immb)
 {
-    // R5VM_B_F3_BGEU: // if (R[rs1] >= R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask); break;
+    // R5VM_B_F3_BGEU: if (R[rs1] >= R[rs2]) vm->pc = ((vm->pc-4 + IMM_B(inst)) & vm->mem_mask);
     int target_pc = (vm->pc - 4 + immb) & vm->mem_mask;
     emit(b, "8b 47"); emit1(b, OFF_X(rs1));  // eax = R[rs1] (mov eax, [edi + rs1*4])
     emit(b, "8b 5f"); emit1(b, OFF_X(rs2));  // ebx = R[rs2]
@@ -328,7 +331,7 @@ static void emit_bgeu(const r5vm_t* vm, r5jitbuf_t* b,
 static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
                      int reg1, int reg2, int immb)
 {
-    // R5VM_B_F3_BLT:  if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
+    // R5VM_B_F3_BLT: if ((int32_t)R[rs1] <  (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask;
     int target_pc = (vm->pc-4 + immb) & vm->mem_mask;
     emit(b, "8B 47"); emit1(b, OFF_X(reg1)); // eax = rs1 | mov eax, [edi + OFF_X(rs1)] (mit disp8)
     emit(b, "8B 5F"); emit1(b, OFF_X(reg2)); // ebx = rs2 | mov ebx, [edi+off]
@@ -341,9 +344,8 @@ static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
 static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
                      int reg1, int reg2, int immb)
 {
-    // R5VM_B_F3_BGE: if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask; break;
+    // R5VM_B_F3_BGE: if ((int32_t)R[rs1] >= (int32_t)R[rs2]) vm->pc = (vm->pc-4 + IMM_B(inst)) & vm->mem_mask;
     int target_pc = (vm->pc - 4 + immb) & vm->mem_mask;
-
     emit(b, "8B 47"); emit1(b, OFF_X(reg1)); // eax = rs1
     emit(b, "8B 5F"); emit1(b, OFF_X(reg2)); // ebx = rs2
     emit(b, "39 D8"); // cmp eax, ebx
@@ -353,9 +355,8 @@ static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
 }
 
 static void emit_lw(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb) {
+    //  R5VM_I_F3_LW:  R[rd] = vm->mem[(R[rs1] + IMM_I(inst)) & vm->mem_mask];
     if (rd == 0) { return; }
-    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
-    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
     emit(b, "8B 47");       // mov eax, [edi + disp8]
     emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
     if (immb != 0) {
@@ -366,7 +367,6 @@ static void emit_lw(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb) {
     emit4(b, vm->mem_mask); // eax &= mem_mask
     emit(b, "8B 9F");       // mov ebx, [edi + disp32]
     emit4(b, OFF_MEM);      // ebx = vm->mem
-    // eax = *(uint32_t*)(ebx + eax)
     emit(b, "8B 04 03");    // mov eax, [ebx + eax]
     emit(b, "89 47");       // mov [edi + disp8], eax
     emit1(b, OFF_X(rd));    // store into rd
@@ -374,10 +374,9 @@ static void emit_lw(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb) {
 
 static void emit_lh(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
 {
-    if (rd == 0) { return; }
     // signed 16-bit load
-    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
-    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
+    // R5VM_I_F3_LW:  R[rd] = vm->mem[(R[rs1] + IMM_I(inst)) & vm->mem_mask];
+    if (rd == 0) { return; }
     emit(b, "8B 47");       // mov eax, [edi + disp8]
     emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
     if (immb != 0) {
@@ -388,7 +387,6 @@ static void emit_lh(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
     emit4(b, vm->mem_mask); // eax &= mem_mask
     emit(b, "8B 9F");       // mov ebx, [edi + disp32]
     emit4(b, OFF_MEM);      // ebx = vm->mem
-    // ax = *(int16_t*)(ebx + eax)
     emit(b, "66 8b 04 03"); // mov ax, [ebx + eax]
     emit(b, "98");          // cwde (sign extend AX to EAX)
     emit(b, "89 47");       // mov [edi + disp8], eax
@@ -397,10 +395,9 @@ static void emit_lh(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
 
 static void emit_lb(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
 {
-    if (rd == 0) { return; }
     // signed 8-bit load
-    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
-    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
+    // R5VM_I_F3_LW: R[rd] = vm->mem[(R[rs1] + IMM_I(inst)) & vm->mem_mask];
+    if (rd == 0) { return; }
     emit(b, "8B 47");       // mov eax, [edi + disp8]
     emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
     if (immb != 0) {
@@ -421,10 +418,9 @@ static void emit_lb(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
 
 static void emit_lhu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
 {
-    if (rd == 0) { return; }
     // unsigned 16-bit load
-    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
-    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
+    // R5VM_I_F3_LW: R[rd] = vm->mem[(R[rs1] + IMM_I(inst)) & vm->mem_mask];
+    if (rd == 0) { return; }
     emit(b, "8B 47");       // mov eax, [edi + disp8]
     emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
     if (immb != 0) {
@@ -435,7 +431,6 @@ static void emit_lhu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
     emit4(b, vm->mem_mask); // eax &= mem_mask
     emit(b, "8B 9F");       // mov ebx, [edi + disp32]
     emit4(b, OFF_MEM);      // ebx = vm->mem
-    // ax = *(uint16_t*)(ebx + eax)
     emit(b, "66 8b 04 03"); // mov ax, [ebx + eax]
     emit(b, "25"); emit4(b, 0xffff); // and eax, 0xffff
     emit(b, "89 47");       // mov [edi + disp8], eax
@@ -444,10 +439,9 @@ static void emit_lhu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
 
 static void emit_lbu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
 {
-    if (rd == 0) { return; }
     // unsigned 8-bit load
-    //  const uint32_t addr = (R[rs1] + IMM_I(inst)) & vm->mem_mask;
-    //  R5VM_I_F3_LW:  R[rd] = vm->mem[addr]; break;
+    // R5VM_I_F3_LW: R[rd] = vm->mem[(R[rs1] + IMM_I(inst)) & vm->mem_mask];
+    if (rd == 0) { return; }
     emit(b, "8B 47");       // mov eax, [edi + disp8]
     emit1(b, OFF_X(rs1));   // eax = R[rs1] + IMM
     if (immb != 0) {
@@ -458,7 +452,6 @@ static void emit_lbu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
     emit4(b, vm->mem_mask); // eax &= mem_mask
     emit(b, "8B 9F");       // mov ebx, [edi + disp32]
     emit4(b, OFF_MEM);      // ebx = vm->mem
-    // al = *(uint8_t*)(ebx + eax)
     emit(b, "8a 04 03");    // mov al, [ebx + eax]
     emit(b, "25"); emit4(b, 0xff); // and eax, 0xff
     emit(b, "89 47");       // mov [edi + disp8], eax
@@ -467,10 +460,10 @@ static void emit_lbu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb)
 
 static void emit_auipc(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
 {
-    if (rd == 0) { return; }
     // R[rd] = vm->pc-4 + IMM_U(inst);
+    if (rd == 0) { return; }
     uint32_t target_pc = (vm->pc-4 + immu) & vm->mem_mask;
-    emit(b, "B8");    // mov eax, imm32
+    emit(b, "B8");      // mov eax, imm32
     emit4(b, target_pc);
     emit(b, "89 47");   // mov [edi + disp8], eax
     emit1(b, OFF_X(rd));
@@ -478,9 +471,9 @@ static void emit_auipc(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
 
 static void emit_lui(r5vm_t* vm, r5jitbuf_t* b, int rd, uint32_t immu)
 {
-    if (rd == 0) { return; }
     // R[rd] = IMM_U(inst);
-    emit(b, "b8"); // mov eax, IMM_U
+    if (rd == 0) { return; }
+    emit(b, "b8");      // mov eax, IMM_U
     emit4(b, immu);
     emit(b, "89 47");   // mov [edi + disp8], eax
     emit1(b, OFF_X(rd));
@@ -500,8 +493,7 @@ static void emit_sw4(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
 
 static void emit_sw2(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
 {
-    // addr = (R[rs1] + IMM_S) & vm->mem_mask;
-    // *(uint16_t*)(&vm->mem[addr]) = R[rs2] 0xFFFF;
+    // *(uint16_t*)(&vm->mem[(R[rs1] + IMM_S) & vm->mem_mask]) = R[rs2] 0xFFFF;
     emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
     if (imm_s) { emit(b, "05"); emit4(b, imm_s); } // add eax, imm32
     emit(b, "25"); emit4(b, vm->mem_mask);  // and eax, vm->mem_mask
@@ -512,8 +504,7 @@ static void emit_sw2(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
 
 static void emit_sw1(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
 {
-    // addr = (R[rs1] + IMM_S) & vm->mem_mask;
-    // *(uint8_t*)(&vm->mem[addr]) = R[rs2] 0xFF;
+    // *(uint8_t*)(&vm->mem[(R[rs1] + IMM_S) & vm->mem_mask]) = R[rs2] 0xFF;
     emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
     if (imm_s) { emit(b, "05"); emit4(b, imm_s); } // add eax, imm32
     emit(b, "25"); emit4(b, vm->mem_mask);  // and eax, vm->mem_mask
@@ -524,8 +515,8 @@ static void emit_sw1(r5vm_t* vm, r5jitbuf_t* b, int rs1, int rs2, int imm_s)
 
 static void emit_xor(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
 {
+    // R5VM_R_F3_XOR: R[rd] = R[rs1] ^ R[rs2];
     if (rd == 0) { return; }
-    // R5VM_R_F3_XOR:  R[rd] = R[rs1] ^ R[rs2]; break;
     emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
     emit(b, "33 47"); emit1(b, OFF_X(rs2)); // xor eax, [edi + OFF_X(rs2)]
     emit(b, "89 47");       // mov [edi + disp8], eax
@@ -534,8 +525,8 @@ static void emit_xor(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
 
 static void emit_or(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
 {
+    // R5VM_R_F3_OR: R[rd] = R[rs1] | R[rs2];
     if (rd == 0) { return; }
-    // R5VM_R_F3_OR:  R[rd] = R[rs1] | R[rs2]; break;
     emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
     emit(b, "0b 47"); emit1(b, OFF_X(rs2)); // or  eax, [edi + OFF_X(rs2)]
     emit(b, "89 47");       // mov [edi + disp8], eax
@@ -557,7 +548,7 @@ static void emit_sll(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
     if (rd == 0) { return; }
     // R5VM_R_F3_SLL:  R[rd] = R[rs1] << (R[rs2] & 0x1F); break;
     emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // mov ecx, [edi + OFF_X(rs2)]
-    // emit(b, "83 e1 1f");    // and ecx, 0x1f
+    // emit(b, "83 e1 1f"); // and ecx, 0x1f
     emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
     emit(b, "d3 e0");       // shl eax, cl
     emit(b, "89 47");       // mov [edi + disp8], eax
@@ -566,41 +557,40 @@ static void emit_sll(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
 
 static void emit_srl(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
 {
-    if (rd == 0) { return; }
     // R[rd] = R[rs1] >> (R[rs2] & 0x1F)
+    if (rd == 0) { return; }
     emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // ECX = R[rs2]
-    // emit(b, "83 e1 1f");      // and ecx, 0x1f
     emit(b, "8b 47"); emit1(b, OFF_X(rs1)); // EAX = R[rs1]
-    emit(b, "d3 e8"); // shr eax, cl   (logical)
+    emit(b, "d3 e8");       // shr eax, cl   (logical)
     emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
 }
 
 static void emit_sra(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
 {
-    if (rd == 0) { return; }
     // R[rd] = ((int32_t)R[rs1]) >> (R[rs2] & 0x1F)
-    emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // ECX = R[rs2]
-    // emit(b, "83 e1 1f");      // and ecx, 0x1f
-    emit(b, "8b 47"); emit1(b, OFF_X(rs1)); // EAX = R[rs1]
-    emit(b, "d3 f8"); // sar eax, cl   (arithmetic)
+    if (rd == 0) { return; }
+    emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // ecx = R[rs2]
+    emit(b, "8b 47"); emit1(b, OFF_X(rs1)); // eax = R[rs1]
+    emit(b, "d3 f8");       // sar eax, cl   (arithmetic)
     emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
 }
 
 static void emit_slt(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
 {
+    // R[rd] = ((int32_t)R[rs1] < (int32_t)R[rs2]);
     if (rd == 0) { return; }
     emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // eax = R[rs1]
     emit(b, "8B 5F"); emit1(b, OFF_X(rs2)); // ebx = R[rs2]
-    emit(b, "39 D8"); // cmp eax, ebx
-    emit(b, "0F 9C C0"); // setl al   (signed compare)
-    emit(b, "0F B6 C0"); // movzx eax, al
+    emit(b, "39 D8");       // cmp eax, ebx
+    emit(b, "0F 9C C0");    // setl al   (signed compare)
+    emit(b, "0F B6 C0");    // movzx eax, al
     emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
 }
 
 static void emit_sltu(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int rs2)
 {
-    if (rd == 0) { return; }
     // R5VM_R_F3_SLTU: R[rd] = (R[rs1] < R[rs2]);
+    if (rd == 0) { return; }
     emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // eax = R[rs1]
     emit(b, "8B 5F"); emit1(b, OFF_X(rs2)); // ebx = R[rs2]
     emit(b, "39 D8"); // cmp eax, ebx
@@ -614,9 +604,8 @@ static void emit_jal(const r5vm_t* vm, r5jitbuf_t* b, int rd, int imm_j)
     // R[rd] = vm->pc;
     // vm->pc = (vm->pc + IMM_J(inst) - 4) & vm->mem_mask;
     uint32_t target_pc = (vm->pc-4 + imm_j) & vm->mem_mask;
-
-    // mov DWORD PTR [edi + OFF_X(rd)], target_pc
     if (rd != 0) {
+        // mov DWORD PTR [edi + OFF_X(rd)], target_pc
         emit(b, "c7 47"); // R[rd] = vm->pc
         emit1(b, OFF_X(rd));
         emit4(b, vm->pc);
@@ -644,16 +633,16 @@ static void emit_jalr(const r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int imm_
 
 static void emit_ecall(const r5vm_t *vm, r5jitbuf_t *b)
 {
-    emit1(b, 0x57); // push edi    ; argument: vm*
-    emit1(b, 0xE8);
+    emit1(b, 0x57); // push edi
+    emit1(b, 0xE8); // call rel32
     emit4(b, calc_rel32(b, r5vm_handle_ecall));
-    emit1(b, 0x83); // cdecl call: add esp, 4  ; to cleanup stack
-    emit1(b, 0xC4);
-    emit1(b, 4);
+    emit1(b, 0x5F); // pop edi
 }
 
 // ---- Compiler --------------------------------------------------------------
 
+/** * Compile a single RISC-V instruction at current vm->pc into x86.
+ * Returns false on unhandled or invalid instruction. */
 static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
 {
     bool retcode = true;
@@ -664,9 +653,9 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
                   | (vm->mem[(vm->pc + 3) & vm->mem_mask] << 24);
     vm->pc = (vm->pc + 4) & vm->mem_mask;
     /* decode/execute: */
-    const uint32_t rd  = RD(inst) & 0x7f;
-    const uint32_t rs1 = RS1(inst) & 0x7f;
-    const uint32_t rs2 = RS2(inst) & 0x7f;
+    const uint32_t rd  = RD(inst);
+    const uint32_t rs1 = RS1(inst);
+    const uint32_t rs2 = RS2(inst);
     switch (OPCODE(inst))
     {
     /* _--------------------- R-Type instuctions ---------------------_ */
@@ -812,7 +801,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
                 emit_ecall(vm, jit);
             }
             else if (imm12 == 1) {  /* ebreak */
-                r5jit_emit_epilog(jit);
+                r5jit_emit_epilog(jit); /* return at this point */
             }
             else {
                 r5vm_error(vm, "Unknown system call", vm->pc-4, inst);
@@ -842,7 +831,8 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
 
 // ---- JIT-Entry -------------------------------------------------------------
 
-void r5jit_dump(const r5jitbuf_t* jit)
+/** Helper: Dump the emitted x86 code buffer to 'jit.bin' for external inspection. */
+static void r5jit_dump(const r5jitbuf_t* jit)
 {
     // objdump -D -b binary -mi386 -M intel jit.bin
     FILE* f = fopen("jit.bin", "wb");
@@ -850,38 +840,28 @@ void r5jit_dump(const r5jitbuf_t* jit)
     fclose(f);
 }
 
+/** Compile the entire RISC-V code segment into x86.
+ * Fills jit->instruction_pointers for all RISC-V PCs. */
 bool r5jit_compile(r5vm_t* vm, r5jitbuf_t* jit)
 {
-    bool success = true;
     uint32_t pc;
 
     r5jit_emit_prolog(jit, vm);
     for (pc = vm->code_offset; pc < vm->code_offset + vm->code_size; pc+=4) {
-        assert(pc < vm->code_size);
+        // build map: riscv program counter -> x86 program counter
         jit->instruction_pointers[pc] = (unsigned) &jit->mem[jit->pos];
-#if 0
-        printf("MAP: r5 pc 0x%06x -> [%p] = 0x%08x)) -- ", pc,
-            (void*)&jit->instruction_pointers[pc],
-            jit->instruction_pointers[pc]);
-        printf("%02x ", (vm->mem[vm->pc + 3]) & 0xff);
-        printf("%02x ", (vm->mem[vm->pc + 2]) & 0xff);
-        printf("%02x ", (vm->mem[vm->pc + 1]) & 0xff);
-        printf("%02x ", (vm->mem[vm->pc + 0]) & 0xff);
-        printf("\n");
-#endif
-
-        vm->pc = pc;
-        if (r5jit_step(vm, jit) == false) {
-            success = false;
-            jit->error = true;
+        vm->pc = pc; // manually set the program counter for the next step
+        // emit x86 for the current riscv instruction:
+        if (r5jit_step(vm, jit) == false || jit->error) {
             break;
         }
     }
     r5jit_emit_epilog(jit); // to be safe
 
-    return success;
+    return (jit->error == false);
 }
 
+/** Allocate RWX memory, compile the VM code into it, execute it.  */
 bool r5jit_x86(r5vm_t* vm)
 {
     bool success = false;
@@ -894,7 +874,8 @@ bool r5jit_x86(r5vm_t* vm)
         goto cleanup;
     }
 
-    instruction_pointers = malloc(vm->code_size * 4); /* map r5 pc to x86 pc*/
+    size_t code_section_size = vm->code_offset + vm->code_size;
+    instruction_pointers = malloc(code_section_size * 4); /* map r5 pc to x86 pc*/
     if (!instruction_pointers) {
         goto cleanup;
     }
@@ -906,7 +887,7 @@ bool r5jit_x86(r5vm_t* vm)
                        .error = false, };
 
     if (r5jit_compile(vm, &jit)) {
-        r5jit_dump(&jit);
+        // r5jit_dump(&jit);
 
         {
         hi_time t0 = hi_time_now();
