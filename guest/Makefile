@@ -27,7 +27,7 @@ endif
 # Architecture and ABI
 ARCH    = rv32i
 ABI     = ilp32
-OPT     ?= -O2
+OPT     ?= -O0
 
 SRC     = crt0.s main.c
 OBJ     = $(SRC:.c=.o)

@@ -1,7 +1,8 @@
 int counter;          // test .bss
 int initialized = 42; // test .data
+const int readonly = 23;
 
-static inline void vm_putchar(char c)
+static void vm_putchar(char c)
 {
     register int a0 asm("a0") = c;
     register int a7 asm("a7") = 1; // host syscall id
