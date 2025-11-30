@@ -236,7 +236,6 @@ static bool r5vm_step(r5vm_t* vm)
     case (R5VM_OPCODE_SYSTEM):
         if (FUNCT3(inst) == 0) {
             uint32_t imm12 = (inst >> 20) & 0xFFF;
-            uint32_t syscall_id = vm->a7;
             if (imm12 == 0) { /* ecall */
                 putchar(vm->a0 & 0xff);
                 fflush(stdout);
