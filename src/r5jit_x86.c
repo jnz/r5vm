@@ -101,10 +101,11 @@ static uint32_t calc_rel32(r5jitbuf_t* b, void* target)
     return (uint32_t)((uint8_t*)target - next);
 }
 
-void __cdecl r5vm_handle_ecall(r5vm_t* vm)
+void __cdecl r5vm_handle_ecall(r5vm_t* vm) /* emit_ecall is using a cdecl call */
 {
-    // emit_ecall is using a cdecl call
-    volatile int i = 0;
+    if (vm->a7 == 1) {
+        putchar(vm->a0);
+    }
 }
 
 // ---- Op Codes --------------------------------------------------------------
@@ -278,9 +279,11 @@ static void emit_beq(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_pc]
     emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only
 
+    /* Debug Printf
     printf("BEQ Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
         target_pc, (void*)(b->instruction_pointers + target_pc),
         b->instruction_pointers[target_pc]);
+    */
 }
 
 static void emit_bne(const r5vm_t* vm, r5jitbuf_t* b,
@@ -294,10 +297,6 @@ static void emit_bne(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "74 06"); // je +6 (skip jump if equal)
     emit(b, "FF 25"); // jmp [instruction_pointers + target_pc]
     emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
-
-    printf("BNE Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
-        target_pc, (void*)(b->instruction_pointers + target_pc),
-        b->instruction_pointers[target_pc]);
 }
 
 static void emit_bltu(const r5vm_t* vm, r5jitbuf_t* b,
@@ -311,10 +310,6 @@ static void emit_bltu(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "73 06"); // jae +6 (unsigned: if eax >= ebx, skip)
     emit(b, "FF 25"); // jmp [instruction_pointers + target_pc]
     emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
-
-    printf("BLTU Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
-        target_pc, (void*)(b->instruction_pointers + target_pc),
-        b->instruction_pointers[target_pc]);
 }
 
 static void emit_bgeu(const r5vm_t* vm, r5jitbuf_t* b,
@@ -341,10 +336,6 @@ static void emit_blt(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "7D 06"); // jge (conditional jump over next 6 bytes)
     emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_pc]
     emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only
-
-    printf("BLT Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
-        target_pc, (void*)(b->instruction_pointers + target_pc),
-        b->instruction_pointers[target_pc]);
 }
 
 static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
@@ -359,10 +350,6 @@ static void emit_bge(const r5vm_t* vm, r5jitbuf_t* b,
     emit(b, "7C 06"); // jl +6 bytes  (if eax < ebx, skip)
     emit(b, "FF 25"); // jmp [instruction_pointers[target_pc]]
     emit4(b, (uint32_t)(b->instruction_pointers + target_pc));
-
-    printf("BGE Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
-        target_pc, (void*)(b->instruction_pointers + target_pc),
-        b->instruction_pointers[target_pc]);
 }
 
 static void emit_lw(r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int immb) {
@@ -636,9 +623,6 @@ static void emit_jal(const r5vm_t* vm, r5jitbuf_t* b, int rd, int imm_j)
     }
     emit(b, "FF 25"); // jmp [jit->instruction_pointers + target_index]
     emit4(b, (uint32_t)(b->instruction_pointers + target_pc)); // x86-32 bit only
-    printf("JAL Jump target r5_pc %05x addr: [%p] = 0x%08x)\n",
-        target_pc, (void*)(b->instruction_pointers + target_pc),
-        b->instruction_pointers[target_pc]);
 }
 
 static void emit_jalr(const r5vm_t* vm, r5jitbuf_t* b, int rd, int rs1, int imm_i)
@@ -843,7 +827,7 @@ static bool r5jit_step(r5vm_t* vm, r5jitbuf_t* jit)
             retcode = false;
         }
         break;
-    /* _--------------------- FENCE / FENCE.I --------------------------_ */
+    /* _--------------------- FENCE / FENCE.I ------------------------_ */
     case (R5VM_OPCODE_FENCE):
         emit(jit, "90"); // NOP
         break;
@@ -910,7 +894,7 @@ bool r5jit_x86(r5vm_t* vm)
         goto cleanup;
     }
 
-    instruction_pointers = malloc(vm->code_size * 4);
+    instruction_pointers = malloc(vm->code_size * 4); /* map r5 pc to x86 pc*/
     if (!instruction_pointers) {
         goto cleanup;
     }
@@ -928,7 +912,7 @@ bool r5jit_x86(r5vm_t* vm)
         hi_time t0 = hi_time_now();
         r5jit_exec(vm, &jit);
         hi_time t1 = hi_time_now();
-        printf("dt: %f ms (JIT)\n", 1000.0*hi_time_elapsed(t0, t1));
+        printf("dt: %.3f us (JIT)\n", 1000000.0*hi_time_elapsed(t0, t1));
         }
 
         success = true;

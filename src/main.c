@@ -234,7 +234,7 @@ int main(int argc, char** argv)
         hi_time t0 = hi_time_now();
         r5vm_run(&vm, 0);
         hi_time t1 = hi_time_now();
-        printf("dt: %f ms (interpreter)\n", 1000.0*hi_time_elapsed(t0, t1));
+        printf("dt: %.3f us (interpreter)\n", 1000000.0*hi_time_elapsed(t0, t1));
     }
 
     // ------------- JIT --------------
