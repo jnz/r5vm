@@ -3,7 +3,7 @@
 R5VMFLAGS ?= -DR5VM_DEBUG
 
 CC      ?= gcc
-CFLAGS  ?= -std=c99 -O1 -Wall -Wextra $(R5VMFLAGS) -MMD -MP
+CFLAGS  ?= -m32 -std=gnu17 -O1 -Wall -Wextra $(R5VMFLAGS) -MMD -MP
 
 TARGET  := r5vm
 SRC_DIR := src

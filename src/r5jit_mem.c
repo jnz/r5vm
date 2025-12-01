@@ -43,7 +43,7 @@ void* r5jit_get_rwx_mem(size_t bytes)
                                           PAGE_EXECUTE_READWRITE);
 }
 
-void r5jit_free_rwx_mem(void* mem)
+void r5jit_free_rwx_mem(void* mem, size_t bytes)
 {
     if (mem) {
         VirtualFree(mem, 0, MEM_RELEASE);
@@ -52,3 +52,30 @@ void r5jit_free_rwx_mem(void* mem)
 
 #endif /* _WIN32 */
 
+#ifndef _WIN32
+#include <sys/mman.h>
+#include <unistd.h>
+
+void* r5jit_get_rwx_mem(size_t bytes)
+{
+    size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
+    size_t alloc = (bytes + pagesize - 1) & ~(pagesize - 1);
+
+    void* p = mmap(NULL, alloc,
+                   PROT_READ | PROT_WRITE | PROT_EXEC,
+                   MAP_PRIVATE | MAP_ANONYMOUS,
+                   -1, 0);
+
+    return (p == MAP_FAILED) ? NULL : p;
+}
+
+void r5jit_free_rwx_mem(void* mem, size_t bytes)
+{
+    if (!mem) return;
+
+    size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
+    size_t alloc = (bytes + pagesize - 1) & ~(pagesize - 1);
+
+    munmap(mem, alloc);
+}
+#endif /* Not Windows */

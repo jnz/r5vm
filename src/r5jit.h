@@ -65,7 +65,7 @@ void* r5jit_get_rwx_mem(size_t bytes);
  * @brief Free memory from r5jit_get_rwx_mem.
  * @param mem Memory r5jit_get_rwx_mem(...).
  */
-void r5jit_free_rwx_mem(void* mem);
+void r5jit_free_rwx_mem(void* mem, size_t bytes);
 
 #endif // R5VM_H
 

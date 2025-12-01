@@ -111,7 +111,12 @@ static uint32_t calc_rel32(r5jitbuf_t* b, void* target)
     return (uint32_t)((uint8_t*)target - next);
 }
 
-void __cdecl r5vm_handle_ecall(r5vm_t* vm) /* emit_ecall is using a cdecl call */
+#ifdef _WIN32
+#define R5_CDECL __cdecl
+#else
+#define R5_CDECL
+#endif
+void R5_CDECL r5vm_handle_ecall(r5vm_t* vm) /* emit_ecall is using a cdecl call */
 {
     if (vm->a7 == 1) {
         putchar(vm->a0);
@@ -867,7 +872,7 @@ bool r5jit_x86(r5vm_t* vm)
     bool success = false;
     uint8_t* mem = NULL;
     unsigned* instruction_pointers = NULL;
-    size_t mem_size = vm->mem_size;
+    const size_t mem_size = vm->mem_size;
 
     mem = r5jit_get_rwx_mem(mem_size);
     if (!mem) {
@@ -900,7 +905,7 @@ bool r5jit_x86(r5vm_t* vm)
     }
 
 cleanup:
-    r5jit_free_rwx_mem(mem);
+    r5jit_free_rwx_mem(mem, mem_size);
     free(instruction_pointers);
     return success;
 }
