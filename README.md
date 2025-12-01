@@ -46,6 +46,11 @@ r5vm/
 
 ## Building the Host VM (`r5vm`)
 
+For the 32-Bit JIT part, 32-Bit libraries are required as prerequisite:
+```bash
+sudo apt install gcc-multilib libc6-dev-i386
+```bash
+
 ### GCC
 ```bash
 make
