@@ -45,6 +45,7 @@ void* r5jit_get_rwx_mem(size_t bytes)
 
 void r5jit_free_rwx_mem(void* mem, size_t bytes)
 {
+    (void)bytes;
     if (mem) {
         VirtualFree(mem, 0, MEM_RELEASE);
     }
