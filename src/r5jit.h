@@ -67,5 +67,20 @@ void* r5jit_get_rwx_mem(size_t bytes);
  */
 void r5jit_free_rwx_mem(void* mem, size_t bytes);
 
+/**
+ * @brief Error handler for fatal JIT conditions.
+ *
+ * Called by JIT compiler on illegal instructions, invalid memory accesses, or
+ * other unrecoverable faults.
+ *
+ * Users need to implement this function for error handling.
+ *
+ * @param jit    Pointer to the jit instance where the error occurred.
+ * @param msg    Human-readable error message.
+ * @param pc     Program counter at the time of error.
+ * @param instr  Faulting instruction word.
+ */
+void r5jit_error(r5jitbuf_t* jit, const char* msg, uint32_t pc, uint32_t instr);
+
 #endif // R5VM_H
 

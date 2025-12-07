@@ -36,6 +36,7 @@
 #include <assert.h>
 
 #include "r5vm.h"
+#include "r5jit.h"
 #include "hires_time.h"
 
 // -------------------------------------------------------------
@@ -208,6 +209,12 @@ void r5vm_error(r5vm_t* vm, const char* msg, uint32_t pc, uint32_t instr)
     fprintf(stderr, "R5VM ERROR at PC=0x%08X: %s (instr=0x%08X)\n", pc, msg, instr);
 
     r5vm_dump_state(vm);
+}
+
+void r5jit_error(r5jitbuf_t* jit, const char* msg, uint32_t pc, uint32_t instr)
+{
+    (void)jit;
+    fprintf(stderr, "R5JIT ERROR at PC=0x%08X: %s (instr=0x%08X)\n", pc, msg, instr);
 }
 
 // -------------------------------------------------------------
