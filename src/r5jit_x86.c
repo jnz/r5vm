@@ -164,6 +164,7 @@ static void emit_add(r5jitbuf_t* b, int rd, int reg1, int reg2) {
 // R[rd] = R[rs1] + IMM_I(inst);
 static void emit_addi(r5jitbuf_t* b, int rd, int reg1, int imm) {
     if (rd == 0) { return; }
+    if ((rd == reg1) && (imm == 0)) { return; } // NOP
     emit(b, "8B 47");      // mov eax, [edi + disp8]
     emit1(b, OFF_X(reg1)); // register between 0 and 31
     if (imm != 0) {
@@ -529,7 +530,6 @@ static void emit_and(r5jitbuf_t* b, int rd, int rs1, int rs2) {
 static void emit_sll(r5jitbuf_t* b, int rd, int rs1, int rs2) {
     if (rd == 0) { return; }
     emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // mov ecx, [edi + OFF_X(rs2)]
-    // emit(b, "83 e1 1f"); // and ecx, 0x1f
     emit(b, "8B 47"); emit1(b, OFF_X(rs1)); // mov eax, [edi + OFF_X(rs1)]
     emit(b, "d3 e0");       // shl eax, cl
     emit(b, "89 47");       // mov [edi + disp8], eax
@@ -539,8 +539,8 @@ static void emit_sll(r5jitbuf_t* b, int rd, int rs1, int rs2) {
 // R[rd] = R[rs1] >> (R[rs2] & 0x1F)
 static void emit_srl(r5jitbuf_t* b, int rd, int rs1, int rs2) {
     if (rd == 0) { return; }
-    emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // ECX = R[rs2]
-    emit(b, "8b 47"); emit1(b, OFF_X(rs1)); // EAX = R[rs1]
+    emit(b, "8b 4f"); emit1(b, OFF_X(rs2)); // ecx = R[rs2]
+    emit(b, "8b 47"); emit1(b, OFF_X(rs1)); // eax = R[rs1]
     emit(b, "d3 e8");       // shr eax, cl   (logical)
     emit(b, "89 47"); emit1(b, OFF_X(rd)); // R[rd] = eax
 }

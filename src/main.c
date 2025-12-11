@@ -56,7 +56,8 @@ static size_t parse_mem_arg(const char* s)
         case 'm': val *= 1024UL * 1024UL; break;
         case 0: break;
         default:
-            fprintf(stderr, "warning: unknown suffix '%c' in mem size, using bytes\n", *end);
+            fprintf(stderr, "warning: unknown suffix '%c' in mem size, using "
+                            "bytes\n", *end);
     }
     return (size_t)val;
 }
@@ -96,7 +97,7 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
         fclose(f);
         return -2;
     }
-    if (h.magic != R5VM_MAGIC) {
+    if (memcmp(h.magic_str, R5VM_MAGIC_STR, 4) != 0) {
         fprintf(stderr, "invalid .r5m header");
         fclose(f);
         return -3;
@@ -177,6 +178,12 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
     vm->entry       = h.entry & vm->mem_mask;
 
     r5vm_reset(vm);
+    printf("vm: %s\n", path);
+    printf("mem: 0x%08zx\n", vm->mem_size);
+    printf("msk: 0x%08zx\n", vm->mem_mask);
+    printf("bss: %zu bytes\n", vm->bss_size);
+    printf("txt: %zu bytes\n", vm->code_size);
+    printf("dat: %zu bytes\n", vm->data_size);
 
     return 0;
 }
@@ -249,7 +256,7 @@ int main(int argc, char** argv)
     if (r5vm_load(path, &vmjit, override_mem) != 0) {
         return -2;
     }
-    bool r5jit_x86(r5vm_t * vm);
+    bool r5jit_x86(r5vm_t* vm);
     r5jit_x86(&vmjit);
 
     // ---------------------------------
@@ -259,7 +266,7 @@ int main(int argc, char** argv)
     assert(vmjit.zero == 0);
     if (memcmp(vm.regs, vmjit.regs, sizeof(vm.regs)) != 0)
     {
-        printf("Error: register mismatch between interpretor and JIT\n");
+        printf("Error: register mismatch between interpreter and JIT\n");
         r5vm_dump_state(&vm);
         r5vm_dump_state(&vmjit);
     }

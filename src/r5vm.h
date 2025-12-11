@@ -81,7 +81,7 @@
 #define R5VM_BASE_ISA    "RV32I"
 
 /** @brief .r5m Header Identifier (r5vm in little endian) */
-#define R5VM_MAGIC       0x6d763572u
+#define R5VM_MAGIC_STR   "r5vm"
 
 // ---- .r5m header structure -------------------------------------------------
 
