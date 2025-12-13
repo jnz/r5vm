@@ -5,24 +5,31 @@ MEMORY {
 }
 
 SECTIONS {
+    . = ORIGIN(RAM);
+
     .text : {
+        *(.text.entry)
         *(.text*)
-        *(.text.*)
     } > RAM
 
     .rodata : {
         *(.rodata*)
-        *(.rodata.*)
     } > RAM
 
     .data : {
+        _sdata = .;
         *(.data*)
-        *(.data.*)
-    } > RAM
+        _edata = .;
+    } > RAM AT > RAM
 
-    .bss : {
+    .bss (NOLOAD) : {
+        _sbss = .;
         *(.bss*)
         *(COMMON)
+        _ebss = .;
     } > RAM
+
+    . = ALIGN(4);
+    _stack_top = ORIGIN(RAM) + LENGTH(RAM);
 }
 

@@ -27,8 +27,6 @@ SECTIONS
         _edata = .;
     } > RAM AT > RAM
 
-    _sidata = _sdata; /* for CRT0 */
-
     .bss (NOLOAD) : {
         _sbss = .;
         *(.bss*)
