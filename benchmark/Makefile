@@ -78,7 +78,7 @@ cppbenchmarkvm.elf: $(OBJ) r5vm.ld
 	@$(SIZE) -A -d $@
 
 cppbenchmarkvm.r5m: cppbenchmarkvm.elf
-	$(OBJDUMP) -D $< > cppbenchmarkvm.list
+	$(OBJDUMP) -D -S $< > cppbenchmarkvm.list
 	python ../r5asm/r5asm.py --verbose $< $@
 
 clean:
