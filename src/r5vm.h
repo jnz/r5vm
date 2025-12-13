@@ -41,12 +41,11 @@
  *
  * 1. Include `r5vm.h` in your project.
  * 2. Allocate a memory buffer and load your compiled RV32I program into it.
- *    (see the `guest/` example for how to produce a binary such as `vm.bin`).
+ *    (see the `guest/` example for how to produce a binary such as `vm.r5m`).
  * 3. Create and initialize the VM:
  *    @code
- *    r5vm_t vm;
- *    r5vm_init(&vm, memory, memory_size);
- *    r5vm_reset(&vm);
+ *      r5vm_t vm;
+ *      r5vm_load("guest/vm.r5m", &vm, 0);
  *    @endcode
  * 4. Run the program:
  *    @code
@@ -58,7 +57,6 @@
  * @section notes Notes
  *
  * - `mem_size` must be a power of two for address wrapping to work.
- * - `r5vm_destroy()` clears state but does not free the memory buffer.
  * - The base ISA supported is **RV32I** (no M/A/F/D extensions).
  *
  * @section license License

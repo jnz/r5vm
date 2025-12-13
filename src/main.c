@@ -46,6 +46,15 @@
 #define RESET "\x1b[0m"
 // -------------------------------------------------------------
 
+/** @brief Helper function: Parse memory size argument from command line.
+ *
+ * Supports suffixes:
+ *  - k: kilobytes
+ *  - m: megabytes
+ *
+ * @param s Input string
+ * @return Parsed size in bytes
+ */
 static size_t parse_mem_arg(const char* s)
 {
     char *end;
@@ -65,11 +74,13 @@ static size_t parse_mem_arg(const char* s)
 
 // -------------------------------------------------------------
 
+/** @brief Read little-endian 16-bit value from byte array. */
 static uint16_t rd16le(const uint8_t* p)
 {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
 
+/** @brief Read little-endian 32-bit value from byte array. */
 static uint32_t rd32le(const uint8_t* p)
 {
     return (uint32_t)p[0]
@@ -93,6 +104,27 @@ static uint32_t mem_size_power2(size_t override_mem, size_t fsize)
     return total_mem;
 }
 
+/** @brief Load r5vm binary from file into VM instance.
+ *
+ * Target image in vm->mem after this call:
+ * Loads .CODE to load_addr, .DATA after that, zeroes .BSS.
+ * So vm->mem looks like this:
+ * +-----------------+  <- load_addr
+ * |      .CODE      |
+ * +-----------------+
+ * |      .DATA      |
+ * +-----------------+
+ * |      .BSS       |
+ * +-----------------+
+ * |                 |
+ * +-----------------+ <- vm->mem_size
+ *
+ *
+ * @param path Path to .r5m file
+ * @param vm Pointer to (unintialized) r5vm struct to initialize
+ * @param mem_size_requested Requested memory size (0 = use image default)
+ * @return 0 on success, negative value on error
+ */
 int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
 {
     FILE* f = fopen(path, "rb");
@@ -223,6 +255,11 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
 
 // -------------------------------------------------------------
 
+/** @brief Helper function: Dump VM state (PC, registers, memory range) to
+ * stderr.
+ *
+ * @param vm Pointer to R5VM instance
+ */
 static void r5vm_dump_state(const r5vm_t* vm)
 {
     if (!vm) return;
@@ -244,6 +281,14 @@ static void r5vm_dump_state(const r5vm_t* vm)
     fprintf(stderr, "---------------------------\n");
 }
 
+/** @brief Runtime Interpreter error handler: Print error message to stderr and
+ * dump VM state.
+ *
+ * @param vm Pointer to R5VM instance
+ * @param msg Error message
+ * @param pc Program counter (RISC-V) where error occurred
+ * @param instr Instruction that caused the error
+ */
 void r5vm_error(r5vm_t* vm, const char* msg, uint32_t pc, uint32_t instr)
 {
     fprintf(stderr, "R5VM ERROR at PC=0x%08X: %s (instr=0x%08X)\n", pc, msg, instr);
@@ -251,13 +296,27 @@ void r5vm_error(r5vm_t* vm, const char* msg, uint32_t pc, uint32_t instr)
     r5vm_dump_state(vm);
 }
 
+/** @brief JIT/AOT compilation error handler: Print error message to stderr.
+ *
+ * @param jit Pointer to current JIT buffer
+ * @param msg Error message
+ * @param pc Program counter (RISC-V, not e.g. x86) where error occurred
+ * @param instr Instruction that caused the error
+ */
 void r5jit_error(r5jitbuf_t* jit, const char* msg, uint32_t pc, uint32_t instr)
 {
     (void)jit;
     fprintf(stderr, "R5JIT ERROR at PC=0x%08X: %s (instr=0x%08X)\n", pc, msg, instr);
 }
 
-void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len)
+/** @brief Helper function: Dump memory differences between two memory areas
+ * and print areas that differ to stdout.
+ *
+ * @param a First memory area (pointer)
+ * @param b Second memory area (pointer)
+ * @param len Length of memory areas to compare in bytes
+ */
+static void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len)
 {
     assert(a && b);
     const size_t block = 4;
@@ -290,6 +349,7 @@ void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len)
 
 // -------------------------------------------------------------
 
+/** @brief Main entry point: Load R5VM binary, run guest image. */
 int main(int argc, char** argv)
 {
     if (argc < 2) {
