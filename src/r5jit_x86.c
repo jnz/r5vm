@@ -450,9 +450,9 @@ static void emit_lbu(r5jitbuf_t* b, int rd, int rs1, int immb, uint32_t mem_mask
 }
 
 // R[rd] = vm->pc-4 + IMM_U(inst);
-static void emit_auipc(r5jitbuf_t* b, int rd, uint32_t immu, uint32_t pc, uint32_t mem_mask) {
+static void emit_auipc(r5jitbuf_t* b, int rd, uint32_t immu, uint32_t pc) {
     if (rd == 0) { return; }
-    const uint32_t target_pc = (pc + immu) & mem_mask;
+    const uint32_t target_pc = pc + immu;
     emit(b, "B8");      // mov eax, imm32
     emit4(b, target_pc);
     emit(b, "89 47");   // mov [edi + disp8], eax
@@ -686,7 +686,7 @@ static bool r5jit_step(r5jitbuf_t* jit, const uint32_t inst,
         break;
     /* _--------------------- AUIPC -----------------------------------_ */
     case (R5VM_OPCODE_AUIPC):
-                               emit_auipc(jit, rd, IMM_U(inst), pc, mem_mask); break;
+                               emit_auipc(jit, rd, IMM_U(inst), pc); break;
     /* _--------------------- LUI -------------------------------------_ */
     case (R5VM_OPCODE_LUI):
                                emit_lui(jit, rd, IMM_U(inst));   break;
