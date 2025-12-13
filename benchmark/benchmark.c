@@ -22,15 +22,16 @@ static inline void riscv_ebreak(const char* errmsg)
 void fizzbuff(int upto)
 {
     for (int i = 1; i <= upto; ++i) {
-        if (i % 15 == 0) print("FizzBuzz\n");
-        else if (i % 3 == 0) print("Fizz\n");
-        else if (i % 5 == 0) print("Buzz\n");
+        if (i % 15 == 0) print(", FizzBuzz");
+        else if (i % 3 == 0) print(", Fizz");
+        else if (i % 5 == 0) print(", Buzz");
         else {
             char out[32];
-            sprintf(out, "%i\n", i);
+            sprintf(out, "%s%i", i>1?", ":"", i);
             print(out);
         }
     }
+    print("\n");
 }
 
 static void compute_int32()
