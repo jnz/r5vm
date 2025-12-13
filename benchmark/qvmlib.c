@@ -163,8 +163,9 @@ float fabsf(float x) {
 // --- vsprintf -----------------------------------------------------------
 
 static void puts_buf(char **buf, const char *s) {
-    while (*s)
+    while (*s) {
         *(*buf)++ = *s++;
+    }
 }
 
 static void putu_buf(char **buf, unsigned int val, int base, int uppercase) {
@@ -175,8 +176,9 @@ static void putu_buf(char **buf, unsigned int val, int base, int uppercase) {
         tmp[i++] = (d < 10) ? '0' + d : (uppercase ? 'A' : 'a') + d - 10;
         val /= base;
     } while (val && i < (int)sizeof(tmp));
-    while (i--)
+    while (i--) {
         *(*buf)++ = tmp[i];
+    }
 }
 
 int vsprintf(char *buffer, const char *fmt, va_list ap) {
@@ -194,6 +196,7 @@ int vsprintf(char *buffer, const char *fmt, va_list ap) {
             puts_buf(&buf, s);
             break;
         }
+        case 'i':
         case 'd': {
             int v = va_arg(ap, int);
             if (v < 0) { *buf++ = '-'; v = -v; }
