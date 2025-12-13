@@ -15,9 +15,9 @@ firmware.r5m: firmware.elf
 dump: firmware.elf firmware.bin
 	xxd -c 4 firmware.bin
 	echo ""
-	$(CROSS)-objdump -d firmware.elf > firmware.lst
+	$(CROSS)-objdump -d firmware.elf > firmware.list
 	riscv64-unknown-elf-readelf -s firmware.elf > firmware.sym
 
 clean:
-	rm -f firmware.r5m firmware.elf firmware.bin
+	rm -f firmware.r5m firmware.elf firmware.bin firmware.sym firmware.list
 
