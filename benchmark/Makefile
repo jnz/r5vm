@@ -29,7 +29,7 @@ ARCH    = rv32i
 ABI     = ilp32
 OPT     ?= -O2
 
-SRC     = crt0.s benchmark.cpp qvmlib.c
+SRC     = crt0.s benchmark.c qvmlib.c
 OBJ     = $(SRC:.c=.o)
 OBJ     := $(OBJ:.s=.o)
 
@@ -63,22 +63,22 @@ $(info [r5vm] arch/abi:      $(ARCH)/$(ABI))
 -include config.mk
 
 # --- Build rules --------------------------------------------------
-all: cppbenchmarkvm.r5m
+all: benchmarkvm.r5m
 
 %.o: %.s
 	$(AS) $(ASFLAGS) -c -o $@ $<
 
-%.o: %.cpp
+%.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-cppbenchmarkvm.elf: $(OBJ) r5vm.ld
+benchmarkvm.elf: $(OBJ) r5vm.ld
 	$(LD) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
 	@echo
 	@echo "Section sizes (bytes):"
 	@$(SIZE) -A -d $@
 
-cppbenchmarkvm.r5m: cppbenchmarkvm.elf
-	$(OBJDUMP) -D -S $< > cppbenchmarkvm.list
+benchmarkvm.r5m: benchmarkvm.elf
+	$(OBJDUMP) -D -S $< > benchmarkvm.list
 	python ../r5asm/r5asm.py --verbose $< $@
 
 clean:
