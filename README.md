@@ -37,9 +37,11 @@ r5vm/
 ├── guest/
 │   ├── main.c      # guest example .c template
 │   ├── r5vm.ld     # linker script for guest example
-│   └── Makefile    # Run make to build guest binary "vm.bin"
+│   └── Makefile    # Run make to build guest binary "vm.r5m"
+├── r5asm/
+│   └── r5asm.py    # Tool to convert ELF to guest "*.r5m" images
 └── visualstudio/
-    └── r5vm.sln    # Visual Studio 2022 project file for host program
+    └── r5vm.sln    # Visual Studio 2026 project file for host program
 ```
 
 ---
@@ -65,7 +67,7 @@ make CC=clang
 
 Open `visualstudio/r5vm.sln` and build/run the project in Visual Studio.
 
-## Running a Guest Program (`vm.bin`)
+## Running a Guest Program (`vm.r5m`)
 
 ### Building and Running a Guest Program with `gcc`
 
@@ -76,7 +78,17 @@ A minimal RISC-V toolchain (e.g. `riscv64-unknown-elf-gcc`) is required.
 sudo apt install gcc-riscv64-unknown-elf
 ```
 
-Inside the `guest/` directory, the provided Makefile builds a flat binary:
+Inside the `guest/` directory, the provided Makefile builds a the guest into a binary.
+
+The Makefile calls `r5asm.py` to convert the ELF output into a flat binary
+image for the VM, but this relies on Python 3 being installed and the
+`pyelftools` package being available:
+
+```bash
+pip install pyelftools
+```
+
+After installing the `r5asm.py` prerequisites, build the guest program with:
 
 ```bash
 cd guest
@@ -84,7 +96,8 @@ make
 ```
 
 This produces:
-- `vm.bin` - raw binary image (feed this to the host vm)
+
+- `vm.r5m` - binary image (feed this to the host vm)
 - `vm.elf` - ELF executable (in case you need it)
 - `vm.list` - disassembly (to analyze the assembler output)
 
@@ -104,20 +117,19 @@ sudo apt install clang lld llvm
 ### Run the Program in the VM
 
 ```bash
-./r5vm guest/vm.bin
+./r5vm guest/vm.r5m
 ```
 
-Optional: specify memory size explicitly
-(e.g. 128 KiB instead of default 64 KiB):
+Optional: specify memory size explicitly (but the required memory is stored in
+the `.r5m` file header):
 
 ```bash
-./r5vm guest/vm.bin --mem 128K
+./r5vm guest/vm.r5m --mem 2M
 ```
 
-### Example Output
+### Example Output from `guest/vm.r5m`:
 
 ```
-[r5vm] program=18247 bytes (17.82 KiB), allocated=65536 bytes (64.00 KiB)
 Hello, world!
 ```
 
@@ -152,9 +164,6 @@ MEMORY {
     RAM (rwx) : ORIGIN = 0x00000000, LENGTH = 64K
 }
 ```
-
-The resulting `.bin` file represents the entire memory image from address 0x0000 upward.
-The VM loads it directly into its allocated memory buffer.
 
 ---
 
