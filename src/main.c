@@ -98,8 +98,8 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
     FILE* f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "Cannot open file: %s", path);
-		return -1;
-	}
+        return -1;
+    }
 
     r5vm_header_t h = { 0 };
     r5vm_header_t hdr_raw;
@@ -108,20 +108,20 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
         fclose(f);
         return -2;
     }
-	memcpy(h.magic_str, hdr_raw.magic_str, 4);
-	h.version     = rd16le((uint8_t*) &hdr_raw.version);
-	h.flags       = rd16le((uint8_t*) &hdr_raw.flags);
-	h.entry       = rd32le((uint8_t*) &hdr_raw.entry);
-	h.load_addr   = rd32le((uint8_t*) &hdr_raw.load_addr);
-	h.ram_size    = rd32le((uint8_t*) &hdr_raw.ram_size);
-	h.code_offset = rd32le((uint8_t*) &hdr_raw.code_offset);
-	h.code_size   = rd32le((uint8_t*) &hdr_raw.code_size);
-	h.data_offset = rd32le((uint8_t*) &hdr_raw.data_offset);
-	h.data_size   = rd32le((uint8_t*) &hdr_raw.data_size);
-	h.bss_size    = rd32le((uint8_t*) &hdr_raw.bss_size);
-	h.total_size  = rd32le((uint8_t*) &hdr_raw.total_size);
+    memcpy(h.magic_str, hdr_raw.magic_str, 4);
+    h.version     = rd16le((uint8_t*) &hdr_raw.version);
+    h.flags       = rd16le((uint8_t*) &hdr_raw.flags);
+    h.entry       = rd32le((uint8_t*) &hdr_raw.entry);
+    h.load_addr   = rd32le((uint8_t*) &hdr_raw.load_addr);
+    h.ram_size    = rd32le((uint8_t*) &hdr_raw.ram_size);
+    h.code_offset = rd32le((uint8_t*) &hdr_raw.code_offset);
+    h.code_size   = rd32le((uint8_t*) &hdr_raw.code_size);
+    h.data_offset = rd32le((uint8_t*) &hdr_raw.data_offset);
+    h.data_size   = rd32le((uint8_t*) &hdr_raw.data_size);
+    h.bss_size    = rd32le((uint8_t*) &hdr_raw.bss_size);
+    h.total_size  = rd32le((uint8_t*) &hdr_raw.total_size);
 
-	if (memcmp(h.magic_str, R5VM_MAGIC_STR, 4) != 0) {
+    if (memcmp(h.magic_str, R5VM_MAGIC_STR, 4) != 0) {
         fprintf(stderr, "Invalid .r5m header");
         fclose(f);
         return -3;
@@ -159,38 +159,38 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
         return -6;
     }
 
-	// Load .CODE
-	if (fseek(f, h.code_offset, SEEK_SET) != 0) {
+    // Load .CODE
+    if (fseek(f, h.code_offset, SEEK_SET) != 0) {
         fprintf(stderr, "Could not read .code section");
-		free(mem);
-		fclose(f);
-		return -7;
-	}
-	size_t n = fread(&mem[h.load_addr], 1, h.code_size, f);
-	if (n != h.code_size) {
+        free(mem);
+        fclose(f);
+        return -7;
+    }
+    size_t n = fread(&mem[h.load_addr], 1, h.code_size, f);
+    if (n != h.code_size) {
         fprintf(stderr, "Could not read .code section");
-		free(mem);
-		fclose(f);
-		return -7;
-	}
+        free(mem);
+        fclose(f);
+        return -7;
+    }
 
-	// Load .DATA
-	if (h.data_size > 0) {
-		if (fseek(f, h.data_offset, SEEK_SET) != 0) {
+    // Load .DATA
+    if (h.data_size > 0) {
+        if (fseek(f, h.data_offset, SEEK_SET) != 0) {
         fprintf(stderr, "Could not read .data section");
-			free(mem);
-			fclose(f);
-			return -7;
-		}
+            free(mem);
+            fclose(f);
+            return -7;
+        }
 
-		n = fread(&mem[h.load_addr + h.code_size], 1, h.data_size, f);
-		if (n != h.data_size) {
-			fprintf(stderr, "Could not read .data section");
-			free(mem);
-			fclose(f);
-			return -7;
-		}
-	}
+        n = fread(&mem[h.load_addr + h.code_size], 1, h.data_size, f);
+        if (n != h.data_size) {
+            fprintf(stderr, "Could not read .data section");
+            free(mem);
+            fclose(f);
+            return -7;
+        }
+    }
 
     fclose(f);
 
@@ -260,32 +260,32 @@ void r5jit_error(r5jitbuf_t* jit, const char* msg, uint32_t pc, uint32_t instr)
 void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len)
 {
     assert(a && b);
-	const size_t block = 4;
+    const size_t block = 4;
 
-	for (size_t addr = 0; addr < len; ) {
-		if (a[addr] == b[addr]) {
-			addr++;
-			continue;
-		}
+    for (size_t addr = 0; addr < len; ) {
+        if (a[addr] == b[addr]) {
+            addr++;
+            continue;
+        }
 
-		size_t start = addr & ~(block - 1);
-		size_t end = start + block;
+        size_t start = addr & ~(block - 1);
+        size_t end = start + block;
         if (end > len) { end = len; }
 
-		printf("0x%08zx ", start);
+        printf("0x%08zx ", start);
         for (size_t i = start; i < end; i++) {
             printf("%02x ", a[i]);
         }
-		printf("| ");
+        printf("| ");
         for (size_t i = start; i < end; i++) {
             if (a[i] != b[i]) { printf(RED); }
             printf("%02x ", b[i]);
             if (a[i] != b[i]) { printf(RESET); }
         }
-		printf("\n");
+        printf("\n");
 
-		addr = end;
-	}
+        addr = end;
+    }
 }
 
 // -------------------------------------------------------------
@@ -334,7 +334,7 @@ int main(int argc, char** argv)
         r5vm_dump_state(&vmjit);
 
         r5vm_dump_memdiff((uint8_t*)vm.regs, (uint8_t*)vmjit.regs, sizeof(vm.regs));
-	}
+    }
     if ((vm.mem_size != vmjit.mem_size) ||
         (memcmp(vm.mem, vmjit.mem, vm.mem_size) != 0))
     {
