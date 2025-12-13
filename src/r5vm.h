@@ -83,11 +83,14 @@
 /** @brief .r5m Header Identifier (r5vm in little endian) */
 #define R5VM_MAGIC_STR   "r5vm"
 
+/** @brief .r5m File Format Version */
+#define R5VM_FILE_VERSION 2
+
 // ---- .r5m header structure -------------------------------------------------
 
 #pragma pack(push, 1)
 typedef struct {
-
+    // If you change this, modify the loader code as well
     union {
         uint32_t magic;
         char magic_str[4];
@@ -96,13 +99,14 @@ typedef struct {
     uint16_t flags;
     uint32_t entry;
     uint32_t load_addr;
+    uint32_t ram_size;
     uint32_t code_offset;
     uint32_t code_size;
     uint32_t data_offset;
     uint32_t data_size;
     uint32_t bss_size;
     uint32_t total_size;
-    uint8_t  reserved[24];
+    uint8_t  reserved[20];
 } r5vm_header_t;
 #pragma pack(pop)
 

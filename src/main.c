@@ -42,7 +42,8 @@
 // -------------------------------------------------------------
 
 #define R5VM_MIN_MEM_SIZE   (64 * 1024) // 64 KiB
-
+#define RED   "\x1b[31m"
+#define RESET "\x1b[0m"
 // -------------------------------------------------------------
 
 static size_t parse_mem_arg(const char* s)
@@ -64,19 +65,28 @@ static size_t parse_mem_arg(const char* s)
 
 // -------------------------------------------------------------
 
+static uint16_t rd16le(const uint8_t* p)
+{
+    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+}
+
+static uint32_t rd32le(const uint8_t* p)
+{
+    return (uint32_t)p[0]
+        | ((uint32_t)p[1] << 8)
+        | ((uint32_t)p[2] << 16)
+        | ((uint32_t)p[3] << 24);
+}
+
 /** @brief Calculate actual memory size for machine. Make sure it is a power of two. */
 static uint32_t mem_size_power2(size_t override_mem, size_t fsize)
 {
-    // Heuristic: +25% or at least fsize+R5VM_MIN_MEM_SIZE
-    size_t total_mem = (size_t)fsize + ((size_t)fsize / 4);
-    if (total_mem < (size_t)fsize + R5VM_MIN_MEM_SIZE) {
-        total_mem = (size_t)fsize + R5VM_MIN_MEM_SIZE;
-    }
+    size_t total_mem = (size_t)fsize;
     if (total_mem < override_mem) {
         total_mem = override_mem;
     }
     // Make sure that total_mem is power of two
-    size_t pow2_mem = 64;
+    size_t pow2_mem = 2;
     while (pow2_mem < total_mem)
         pow2_mem *= 2;
     total_mem = pow2_mem;
@@ -87,30 +97,49 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
 {
     FILE* f = fopen(path, "rb");
     if (!f) {
-        fprintf(stderr, "cannot open file: %s", path);
+        fprintf(stderr, "Cannot open file: %s", path);
 		return -1;
 	}
 
-    r5vm_header_t h;
-    if (fread(&h, sizeof(h), 1, f) != 1) {
+    r5vm_header_t h = { 0 };
+    r5vm_header_t hdr_raw;
+    if (fread(&hdr_raw, sizeof(hdr_raw), 1, f) != 1) {
         fprintf(stderr, "Could not load header from file: %s", path);
         fclose(f);
         return -2;
     }
-    if (memcmp(h.magic_str, R5VM_MAGIC_STR, 4) != 0) {
-        fprintf(stderr, "invalid .r5m header");
+	memcpy(h.magic_str, hdr_raw.magic_str, 4);
+	h.version     = rd16le((uint8_t*) &hdr_raw.version);
+	h.flags       = rd16le((uint8_t*) &hdr_raw.flags);
+	h.entry       = rd32le((uint8_t*) &hdr_raw.entry);
+	h.load_addr   = rd32le((uint8_t*) &hdr_raw.load_addr);
+	h.ram_size    = rd32le((uint8_t*) &hdr_raw.ram_size);
+	h.code_offset = rd32le((uint8_t*) &hdr_raw.code_offset);
+	h.code_size   = rd32le((uint8_t*) &hdr_raw.code_size);
+	h.data_offset = rd32le((uint8_t*) &hdr_raw.data_offset);
+	h.data_size   = rd32le((uint8_t*) &hdr_raw.data_size);
+	h.bss_size    = rd32le((uint8_t*) &hdr_raw.bss_size);
+	h.total_size  = rd32le((uint8_t*) &hdr_raw.total_size);
+
+	if (memcmp(h.magic_str, R5VM_MAGIC_STR, 4) != 0) {
+        fprintf(stderr, "Invalid .r5m header");
         fclose(f);
         return -3;
     }
     if (h.flags & 1) {
         fprintf(stderr, "64-bit image not supported");
+        fclose(f);
+        return -4;
+    }
+
+    if (h.version != R5VM_FILE_VERSION) {
+        fprintf(stderr, "Unsupported file version");
+        fclose(f);
         return -4;
     }
 
     // RAM needed for loaded image (virtual size)
-    uint32_t needed = h.code_size + h.data_size + h.bss_size;
-
-    uint32_t mem_size = mem_size_power2(mem_size_requested, needed);
+    uint32_t mem_size = mem_size_power2(mem_size_requested, h.ram_size);
     assert((mem_size & (mem_size - 1)) == 0);
 
     uint8_t* mem = calloc(1, mem_size); /* .BSS included */
@@ -121,7 +150,8 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
     }
 
     // Bounds check: load_addr + image must fit
-    if (h.load_addr + needed > mem_size) {
+    uint64_t needed = (uint64_t)h.code_size + h.data_size + h.bss_size;
+    if (h.load_addr + needed > h.ram_size) {
         fprintf(stderr, "Unsupported load address: %u (memory: %u)",
                         h.load_addr, mem_size);
         free(mem);
@@ -179,6 +209,9 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
 
     r5vm_reset(vm);
     printf("vm: %s\n", path);
+    if (h.ram_size != vm->mem_size) {
+        printf("ram: 0x%08zx (RAM requirement specified in .r5m)\n", h.ram_size);
+    }
     printf("mem: 0x%08zx\n", vm->mem_size);
     printf("msk: 0x%08zx\n", vm->mem_mask);
     printf("bss: %zu bytes\n", vm->bss_size);
@@ -194,7 +227,7 @@ static void r5vm_dump_state(const r5vm_t* vm)
 {
     if (!vm) return;
 
-    fprintf(stderr, "---- R5VM STATE DUMP ----\n");
+    fprintf(stderr, "----- R5VM STATE DUMP -----\n");
     fprintf(stderr, " PC:  0x%08X\n", vm->pc);
 
     for (int i = 0; i < 32; i++) {
@@ -208,7 +241,7 @@ static void r5vm_dump_state(const r5vm_t* vm)
 
     fprintf(stderr, " MEM: 0x%p .. 0x%p (%" PRIu32 " bytes)\n",
             (void*)vm->mem, (void*)(vm->mem + vm->mem_size - 1), vm->mem_size);
-    fprintf(stderr, "--------------------------\n");
+    fprintf(stderr, "---------------------------\n");
 }
 
 void r5vm_error(r5vm_t* vm, const char* msg, uint32_t pc, uint32_t instr)
@@ -222,6 +255,37 @@ void r5jit_error(r5jitbuf_t* jit, const char* msg, uint32_t pc, uint32_t instr)
 {
     (void)jit;
     fprintf(stderr, "R5JIT ERROR at PC=0x%08X: %s (instr=0x%08X)\n", pc, msg, instr);
+}
+
+void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len)
+{
+    assert(a && b);
+	const size_t block = 4;
+
+	for (size_t addr = 0; addr < len; ) {
+		if (a[addr] == b[addr]) {
+			addr++;
+			continue;
+		}
+
+		size_t start = addr & ~(block - 1);
+		size_t end = start + block;
+        if (end > len) { end = len; }
+
+		printf("0x%08zx ", start);
+        for (size_t i = start; i < end; i++) {
+            printf("%02x ", a[i]);
+        }
+		printf("| ");
+        for (size_t i = start; i < end; i++) {
+            if (a[i] != b[i]) { printf(RED); }
+            printf("%02x ", b[i]);
+            if (a[i] != b[i]) { printf(RESET); }
+        }
+		printf("\n");
+
+		addr = end;
+	}
 }
 
 // -------------------------------------------------------------
@@ -263,17 +327,19 @@ int main(int argc, char** argv)
     // compare result
     // ---------------------------------
     assert(vm.zero == 0);
-    assert(vmjit.zero == 0);
     if (memcmp(vm.regs, vmjit.regs, sizeof(vm.regs)) != 0)
     {
-        printf("Error: register mismatch between interpreter and JIT\n");
+        printf(RED "Error:" RESET " register mismatch between interpreter and JIT\n");
         r5vm_dump_state(&vm);
         r5vm_dump_state(&vmjit);
-    }
+
+        r5vm_dump_memdiff((uint8_t*)vm.regs, (uint8_t*)vmjit.regs, sizeof(vm.regs));
+	}
     if ((vm.mem_size != vmjit.mem_size) ||
         (memcmp(vm.mem, vmjit.mem, vm.mem_size) != 0))
     {
-        printf("Error: memory mismatch between interpretor and JIT\n");
+        printf(RED "Error:" RESET " memory mismatch between interpretor and JIT\n");
+        r5vm_dump_memdiff(vm.mem, vmjit.mem, vm.mem_size);
     }
 
     // Free memory

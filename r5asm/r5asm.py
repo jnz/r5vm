@@ -1,32 +1,20 @@
 #!/usr/bin/env python3
 """
-r5asm: pack a RISC-V ELF into an r5vm firmware container (.r5m).
-
-Supported ELF layouts:
-  1) Separate PT_LOAD segments for CODE (executable) and DATA (non-executable)
-  2) Single PT_LOAD segment containing .text/.rodata/.data
-     (common in simple bare-metal setups)
-
-.r5m layout (little endian):
-
-    [Header] (64 bytes)
-    [CODE bytes]
-    [DATA bytes]
-
-Header fields (all little endian):
+r5m image format:
 
     magic       : uint32  "r5vm" = 0x6d763572
-    version     : uint16  = 1
+    version     : uint16  = 2
     flags       : uint16  (bit0: 1 = RV64, 0 = RV32; others reserved)
     entry       : uint32  entry address (ELF e_entry or override)
     load_addr   : uint32  base load address (first PT_LOAD or override)
+    ram_size    : uint32  total RAM size in bytes
     code_offset : uint32  file offset to CODE
     code_size   : uint32  size of CODE in bytes
     data_offset : uint32  file offset to DATA (0 if no data)
     data_size   : uint32  size of DATA in bytes
     bss_size    : uint32  total BSS bytes (memsz - filesz over PT_LOADs)
     total_size  : uint32  total file size in bytes
-    reserved    : 24 bytes, zero
+    reserved    : 20 bytes, zero
 """
 
 import sys
@@ -35,9 +23,9 @@ import struct
 from elftools.elf.elffile import ELFFile
 
 R5VM_MAGIC   = 0x6d763572  # "r5vm" LE
-R5VM_VERSION = 1
+R5VM_VERSION = 2
 
-R5M_HEADER_FMT  = "<IHHIIIIIIII24s"
+R5M_HEADER_FMT  = "<IHHIIIIIIIII20s"
 R5M_HEADER_SIZE = struct.calcsize(R5M_HEADER_FMT)
 
 
@@ -80,6 +68,15 @@ def extract_sections_by_name(elf, wanted):
     return b"".join(out)
 
 
+def get_symbol_value(elf, name):
+    for sec in elf.iter_sections():
+        if sec["sh_type"] == "SHT_SYMTAB":
+            for sym in sec.iter_symbols():
+                if sym.name == name:
+                    return sym["st_value"]
+    return None
+
+
 # ---------------------------------------------------------------------
 # Build r5m
 # ---------------------------------------------------------------------
@@ -94,7 +91,7 @@ def build_r5m(path_in, path_out, rv64=False, entry_override=None,
         if entry_override is not None:
             entry = entry_override
 
-        # Load segments for load_addr and bss
+        # Load segments for load_addr, RAM origin, BSS
         load_segments = collect_load_segments(elf)
         if not load_segments:
             raise SystemExit("ERROR: no PT_LOAD segments")
@@ -103,6 +100,23 @@ def build_r5m(path_in, path_out, rv64=False, entry_override=None,
                          for ph in load_segments)
         if load_addr_override is not None:
             load_addr = load_addr_override
+
+        # -----------------------------------------------------------------
+        # RAM origin + size (authoritative, from ELF)
+        # -----------------------------------------------------------------
+        ram_origin = min(ph["p_vaddr"] for ph in load_segments)
+
+        stack_top = get_symbol_value(elf, "_stack_top")
+        if stack_top is None:
+            raise SystemExit(
+                "ERROR: _stack_top symbol not found in ELF.\n"
+                "Define stack in linker script, e.g.:\n"
+                "  _stack_top = ORIGIN(RAM) + LENGTH(RAM);"
+            )
+
+        ram_size = stack_top - ram_origin
+        if ram_size <= 0:
+            raise SystemExit("ERROR: invalid RAM size computed")
 
         # BSS size = sum(memsz - filesz)
         bss_size = 0
@@ -115,7 +129,6 @@ def build_r5m(path_in, path_out, rv64=False, entry_override=None,
         # ------------------------------
         # Extract CODE and DATA
         # ------------------------------
-
         CODE_SECTIONS = [".text", ".text.init"]
         DATA_SECTIONS = [
             ".rodata", ".srodata", ".data", ".sdata"
@@ -138,6 +151,7 @@ def build_r5m(path_in, path_out, rv64=False, entry_override=None,
             print("CODE size:", len(code_bytes))
             print("DATA size:", len(data_bytes))
             print("BSS size :", bss_size)
+            print("RAM size :", ram_size)
 
     # ------------------------------
     # Build header
@@ -157,7 +171,7 @@ def build_r5m(path_in, path_out, rv64=False, entry_override=None,
         data_size   = 0
 
     total_size = R5M_HEADER_SIZE + code_size + data_size
-    reserved   = b"\x00" * 24
+    reserved   = b"\x00" * 20
 
     header = struct.pack(
         R5M_HEADER_FMT,
@@ -166,6 +180,7 @@ def build_r5m(path_in, path_out, rv64=False, entry_override=None,
         flags,
         entry,
         load_addr,
+        ram_size,
         code_offset,
         code_size,
         data_offset,
@@ -179,10 +194,11 @@ def build_r5m(path_in, path_out, rv64=False, entry_override=None,
         print("Writing:", path_out)
         print("R5M header:")
         print(f"  magic      = 0x{R5VM_MAGIC:08x}")
-        print(f"  version    = 1")
+        print(f"  version    = {R5VM_VERSION}")
         print(f"  flags      = 0x{flags:04x} ({'RV64' if rv64 else 'RV32'})")
         print(f"  entry      = 0x{entry:08x}")
         print(f"  load_addr  = 0x{load_addr:08x}")
+        print(f"  ram_size   = {ram_size} (0x{ram_size:x})")
         print(f"  code_off   = {code_offset} (0x{code_offset:x})")
         print(f"  code_size  = {code_size} (0x{code_size:x})")
         print(f"  data_off   = {data_offset} (0x{data_offset:x})")
