@@ -242,13 +242,13 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
     r5vm_reset(vm);
     printf("vm: %s\n", path);
     if (h.ram_size != vm->mem_size) {
-        printf("ram: 0x%08zx (RAM requirement specified in .r5m)\n", h.ram_size);
+        printf("ram: 0x%08zx (RAM requirement specified in .r5m)\n", (size_t)h.ram_size);
     }
-    printf("mem: 0x%08zx\n", vm->mem_size);
-    printf("msk: 0x%08zx\n", vm->mem_mask);
-    printf("bss: %zu bytes\n", vm->bss_size);
-    printf("txt: %zu bytes\n", vm->code_size);
-    printf("dat: %zu bytes\n", vm->data_size);
+    printf("mem: 0x%08zx\n",   (size_t)vm->mem_size);
+    printf("msk: 0x%08zx\n",   (size_t)vm->mem_mask);
+    printf("bss: %zu bytes\n", (size_t)vm->bss_size);
+    printf("txt: %zu bytes\n", (size_t)vm->code_size);
+    printf("dat: %zu bytes\n", (size_t)vm->data_size);
 
     return 0;
 }
