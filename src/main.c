@@ -315,14 +315,17 @@ void r5jit_error(r5jitbuf_t* jit, const char* msg, uint32_t pc, uint32_t instr)
  * @param a First memory area (pointer)
  * @param b Second memory area (pointer)
  * @param len Length of memory areas to compare in bytes
+ * @param dumpnonzero If true, dump all non-zero areas in b; if false, dump all
+ *                    differences
  */
-static void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len)
+static void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len, bool dumpnonzero)
 {
     assert(a && b);
     const size_t block = 4;
 
     for (size_t addr = 0; addr < len; ) {
-        if (a[addr] == b[addr]) {
+        if  ((dumpnonzero && (a[addr] == 0 && b[addr] == 0)) ||
+            (!dumpnonzero && (a[addr] == b[addr]))) {
             addr++;
             continue;
         }
@@ -393,14 +396,18 @@ int main(int argc, char** argv)
         r5vm_dump_state(&vm);
         r5vm_dump_state(&vmjit);
 
-        r5vm_dump_memdiff((uint8_t*)vm.regs, (uint8_t*)vmjit.regs, sizeof(vm.regs));
+        r5vm_dump_memdiff((uint8_t*)vm.regs, (uint8_t*)vmjit.regs, sizeof(vm.regs), false);
     }
     if ((vm.mem_size != vmjit.mem_size) ||
         (memcmp(vm.mem, vmjit.mem, vm.mem_size) != 0))
     {
         printf(RED "Error:" RESET " memory mismatch between interpretor and JIT\n");
-        r5vm_dump_memdiff(vm.mem, vmjit.mem, vm.mem_size);
+        r5vm_dump_memdiff(vm.mem, vmjit.mem, vm.mem_size, false);
     }
+
+    r5vm_dump_state(&vm);
+    r5vm_dump_state(&vmjit);
+    r5vm_dump_memdiff(&vm.mem[vm.bss_offset], &vmjit.mem[vmjit.bss_offset], vm.mem_size - vm.bss_offset, true); // dump non-zero memory
 
     // Free memory
     free(vm.mem);
