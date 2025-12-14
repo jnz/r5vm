@@ -1,9 +1,16 @@
 # --- R5VM Host Makefile ----------------------------------------------------
 
 R5VMFLAGS ?= -DR5VM_DEBUG
+BUILD ?= release
 
 CC      ?= gcc
-CFLAGS  ?= -m32 -std=gnu17 -O1 -Wall -Wextra $(R5VMFLAGS) -MMD -MP
+CFLAGS  = -m32 -std=gnu17 -O1 -Wall -Wextra $(R5VMFLAGS) -MMD -MP
+
+ifeq ($(BUILD),debug)
+  CFLAGS += -O0 -g
+else
+  CFLAGS += -O1
+endif
 
 TARGET  := r5vm
 SRC_DIR := src
