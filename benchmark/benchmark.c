@@ -19,7 +19,17 @@ static inline void riscv_ebreak(const char* errmsg)
     __asm__ volatile ("ebreak");
 }
 
-void fizzbuff(int upto)
+static int marker = 0x12345678;
+void compute_int64(void)
+{
+    uint64_t a = 0xFFFFFFFFLL;
+    int b = 0x1024;
+
+    static volatile uint64_t sink64;
+    sink64 = a + b;
+}
+
+void fizzbuzz(int upto)
 {
     for (int i = 1; i <= upto; ++i) {
         if (i % 15 == 0) print(", FizzBuzz");
@@ -126,7 +136,8 @@ static void compute_branch()
 
 int main()
 {
-    fizzbuff(15);
+    compute_int64();
+    fizzbuzz(15);
     compute_int32();
     compute_int();
     compute_fp();

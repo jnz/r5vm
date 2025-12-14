@@ -67,7 +67,7 @@ int strcmp(const char *a, const char *b) {
 
 // --- Rand ---------------------------------------------------------------
 
-static int randSeed = 1;
+static int randSeed = 0xCAFEAFFE;
 
 void srand(unsigned seed) {
     randSeed = (int)seed;

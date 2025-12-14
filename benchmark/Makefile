@@ -27,7 +27,7 @@ endif
 # Architecture and ABI
 ARCH    = rv32i
 ABI     = ilp32
-OPT     ?= -O2
+OPT     ?= -O0 -g
 
 SRC     = crt0.s benchmark.c qvmlib.c
 OBJ     = $(SRC:.c=.o)
