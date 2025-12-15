@@ -246,9 +246,9 @@ int r5vm_load(const char* path, r5vm_t* vm, size_t mem_size_requested)
     }
     printf("mem: 0x%08zx\n",   (size_t)vm->mem_size);
     printf("msk: 0x%08zx\n",   (size_t)vm->mem_mask);
-    printf("bss: %zu bytes\n", (size_t)vm->bss_size);
-    printf("txt: %zu bytes\n", (size_t)vm->code_size);
-    printf("dat: %zu bytes\n", (size_t)vm->data_size);
+    printf("txt: @ 0x%08zx %zu bytes\n", (size_t)vm->code_offset, (size_t)vm->code_size);
+    printf("dat: @ 0x%08zx %zu bytes\n", (size_t)vm->data_offset, (size_t)vm->data_size);
+    printf("bss: @ 0x%08zx %zu bytes\n", (size_t)vm->bss_offset,  (size_t)vm->bss_size);
 
     return 0;
 }
@@ -318,7 +318,7 @@ void r5jit_error(r5jitbuf_t* jit, const char* msg, uint32_t pc, uint32_t instr)
  * @param dumpnonzero If true, dump all non-zero areas in b; if false, dump all
  *                    differences
  */
-static void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len, bool dumpnonzero)
+static void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len, size_t addr_offset, bool dumpnonzero)
 {
     assert(a && b);
     const size_t block = 4;
@@ -334,7 +334,7 @@ static void r5vm_dump_memdiff(const uint8_t* a, const uint8_t* b, size_t len, bo
         size_t end = start + block;
         if (end > len) { end = len; }
 
-        printf("0x%08zx ", start);
+        printf("0x%08zx ", start + addr_offset);
         for (size_t i = start; i < end; i++) {
             printf("%02x ", a[i]);
         }
@@ -396,18 +396,22 @@ int main(int argc, char** argv)
         r5vm_dump_state(&vm);
         r5vm_dump_state(&vmjit);
 
-        r5vm_dump_memdiff((uint8_t*)vm.regs, (uint8_t*)vmjit.regs, sizeof(vm.regs), false);
+        r5vm_dump_memdiff((uint8_t*)vm.regs, (uint8_t*)vmjit.regs, sizeof(vm.regs), 0, false);
     }
     if ((vm.mem_size != vmjit.mem_size) ||
         (memcmp(vm.mem, vmjit.mem, vm.mem_size) != 0))
     {
         printf(RED "Error:" RESET " memory mismatch between interpretor and JIT\n");
-        r5vm_dump_memdiff(vm.mem, vmjit.mem, vm.mem_size, false);
+        r5vm_dump_memdiff(vm.mem, vmjit.mem, vm.mem_size, 0, false);
     }
 
     r5vm_dump_state(&vm);
     r5vm_dump_state(&vmjit);
-    r5vm_dump_memdiff(&vm.mem[vm.bss_offset], &vmjit.mem[vmjit.bss_offset], vm.mem_size - vm.bss_offset, true); // dump non-zero memory
+
+    printf(".DATA:\n");
+    r5vm_dump_memdiff(&vm.mem[vm.data_offset], &vmjit.mem[vmjit.data_offset], vm.data_size, vm.data_offset, true);
+    printf(".BSS:\n");
+    r5vm_dump_memdiff(&vm.mem[vm.bss_offset], &vmjit.mem[vmjit.bss_offset], vm.bss_size, vm.bss_offset, true);
 
     // Free memory
     free(vm.mem);
