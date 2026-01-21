@@ -143,8 +143,11 @@ void r5vm_destroy(r5vm_t* vm)
 
 void r5vm_reset(r5vm_t* vm)
 {
-    memset(vm->regs, 0, sizeof vm->regs);
-    vm->pc = 0;
+    if (vm)
+    {
+        memset(vm->regs, 0, sizeof vm->regs);
+        vm->pc = 0;
+    }
 }
 
 /**
